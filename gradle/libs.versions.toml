@@ -26,6 +26,7 @@ navigationCompose = "2.8.4"
 junit5 = "5.10.2"
 junitPlatformLauncher = "1.10.2"
 androidxTestExtJunit = "1.2.1"
+androidxTestRunner = "1.6.2"
 espressoCore = "3.6.1"
 composeUiTestJunit4 = "1.7.6"
 mockk = "1.13.12"
@@ -74,6 +75,7 @@ junit5-engine = { group = "org.junit.jupiter", name = "junit-jupiter-engine", ve
 junit5-params = { group = "org.junit.jupiter", name = "junit-jupiter-params", version.ref = "junit5" }
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junitPlatformLauncher" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
+androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
@@ -87,3 +89,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+room = { id = "androidx.room", version.ref = "room" }

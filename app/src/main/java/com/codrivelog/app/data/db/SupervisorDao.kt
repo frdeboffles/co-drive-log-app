@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Room DAO for [Supervisor] CRUD operations.
+ *
+ * Queries returning live data expose [Flow]; mutations are `suspend` functions.
  */
 @Dao
 interface SupervisorDao {
@@ -13,22 +15,31 @@ interface SupervisorDao {
     /**
      * Observe all supervisors ordered alphabetically by name.
      *
-     * @return A cold [Flow] that re-emits whenever the table changes.
+     * @return A cold [Flow] that re-emits whenever the supervisors table changes.
      */
     @Query("SELECT * FROM supervisors ORDER BY name ASC")
-    fun getAllSupervisors(): Flow<List<Supervisor>>
+    fun getAll(): Flow<List<Supervisor>>
 
     /**
-     * Insert a new supervisor.
+     * Retrieve a single supervisor by primary key.
+     *
+     * @param id The supervisor's primary key.
+     * @return The matching [Supervisor], or `null` if not found.
+     */
+    @Query("SELECT * FROM supervisors WHERE id = :id")
+    suspend fun getById(id: Long): Supervisor?
+
+    /**
+     * Insert a new supervisor.  Existing rows with the same primary key are replaced.
      *
      * @param supervisor The supervisor to persist.
-     * @return The row ID of the newly inserted row.
+     * @return The rowid of the newly inserted row.
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(supervisor: Supervisor): Long
 
     /**
-     * Delete a supervisor record.
+     * Permanently delete a supervisor record.
      *
      * @param supervisor The supervisor to remove.
      */

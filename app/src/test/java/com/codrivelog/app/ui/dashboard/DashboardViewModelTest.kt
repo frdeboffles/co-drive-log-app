@@ -9,17 +9,30 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import com.codrivelog.app.data.model.DriveSession
 import com.codrivelog.app.data.repository.DriveSessionRepository
+import java.time.LocalDate
+import java.time.LocalDateTime
 
 class DashboardViewModelTest {
 
     private val repository = mockk<DriveSessionRepository>()
 
+    /** Convenience builder so tests don't need to repeat every field. */
+    private fun session(totalMinutes: Int, nightMinutes: Int) = DriveSession(
+        date = LocalDate.of(2025, 6, 15),
+        startTime = LocalDateTime.of(2025, 6, 15, 9, 0),
+        endTime = LocalDateTime.of(2025, 6, 15, 10, 30),
+        totalMinutes = totalMinutes,
+        nightMinutes = nightMinutes,
+        supervisorName = "Jane Doe",
+        supervisorInitials = "JD",
+    )
+
     @Test
     fun `uiState totalHours sums session minutes correctly`() = runTest {
         every { repository.getAllSessions() } returns flowOf(
             listOf(
-                DriveSession(epochMillis = 0L, totalMinutes = 60,  nightMinutes = 0,  supervisorId = 1),
-                DriveSession(epochMillis = 0L, totalMinutes = 90,  nightMinutes = 30, supervisorId = 1),
+                session(totalMinutes = 60, nightMinutes = 0),
+                session(totalMinutes = 90, nightMinutes = 30),
             )
         )
 

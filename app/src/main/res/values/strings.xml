@@ -10,7 +10,7 @@
     <!-- Dashboard -->
     <string name="label_total_hours">Total Hours</string>
     <string name="label_night_hours">Night Hours</string>
-    <string name="progress_fraction">%.1f / %.0f hrs</string>
+    <string name="progress_fraction">%1$.1f / %2$.0f hrs</string>
 
     <!-- Foreground service notification -->
     <string name="notification_channel_name">Drive Timer</string>

@@ -8,7 +8,7 @@ Play Store. Open-source on GitHub (MIT license).
 ## Stack
 - Language: Kotlin
 - UI: Jetpack Compose (Material 3)
-- Min SDK: 26 (Android 8.0)
+- Min SDK: 34 (Android 14)
 - Target SDK: 35
 - Architecture: Single-module MVVM with Repository pattern
 - Database: Room (SQLite) for local persistence

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="app_name">CO Drive Log</string>
+
+    <!-- Actions -->
+    <string name="action_add_entry">Add Entry</string>
+    <string name="action_export">Export</string>
+
+    <!-- Dashboard -->
+    <string name="label_total_hours">Total Hours</string>
+    <string name="label_night_hours">Night Hours</string>
+    <string name="progress_fraction">%.1f / %.0f hrs</string>
+
+    <!-- Foreground service notification -->
+    <string name="notification_channel_name">Drive Timer</string>
+    <string name="notification_title">Drive in progress</string>
+    <string name="notification_text">Tap to open CO Drive Log</string>
+</resources>

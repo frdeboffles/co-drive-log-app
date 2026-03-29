@@ -25,7 +25,7 @@ class DashboardViewModel @Inject constructor(
 
     /** UI state exposed to the dashboard composable. */
     val uiState: StateFlow<DashboardUiState> = repository
-        .getAllSessions()
+        .getAll()
         .map { sessions ->
             DashboardUiState(
                 totalHours = sessions.sumOf { it.totalMinutes }.toFloat() / 60f,

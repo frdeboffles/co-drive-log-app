@@ -8,16 +8,30 @@ object Dr2324Mapper {
         sessions: List<DriveSession>,
     ): Dr2324Document {
         val rows = sessions
-            .sortedBy { it.date }
-            .map { session ->
+            .groupBy { it.date }
+            .toList()
+            .sortedBy { it.first }
+            .map { (date, groupedSessions) ->
+                val totalMinutes = groupedSessions.sumOf { it.totalMinutes }
+                val nightMinutes = groupedSessions.sumOf { it.nightMinutes }
+                val initials = groupedSessions
+                    .map { it.verifierInitials.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .joinToString("/")
+                val comments = groupedSessions
+                    .map { it.comments.trim() }
+                    .filter { it.isNotBlank() }
+                    .joinToString(" | ")
+
                 Dr2324Row(
-                    date = Dr2324Formatters.formatDate(session.date),
-                    verifierInitials = session.verifierInitials,
-                    drivingTime = Dr2324Formatters.formatTime(session.totalMinutes),
-                    nightDrivingTime = Dr2324Formatters.formatTime(session.nightMinutes),
-                    comments = session.comments,
-                    totalMinutes = session.totalMinutes,
-                    nightMinutes = session.nightMinutes,
+                    date = Dr2324Formatters.formatDate(date),
+                    verifierInitials = initials,
+                    drivingTime = Dr2324Formatters.formatTime(totalMinutes),
+                    nightDrivingTime = if (nightMinutes == 0) "0h 00m" else Dr2324Formatters.formatTime(nightMinutes),
+                    comments = comments,
+                    totalMinutes = totalMinutes,
+                    nightMinutes = nightMinutes,
                 )
             }
 

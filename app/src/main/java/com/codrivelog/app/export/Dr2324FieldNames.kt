@@ -22,6 +22,7 @@ object Dr2324FieldNames {
     fun rowDate(pageIndex: Int, rowIndex: Int): String = when (rowIndex) {
         0 -> "Date"
         1 -> "Date_02"
+        in 2..8 -> "Date_${(rowIndex + 1).toString().padStart(2, '0')}"
         else -> "Date_${rowIndex + 1}"
     }
 
@@ -38,6 +39,7 @@ object Dr2324FieldNames {
     fun rowNightDrivingTime(pageIndex: Int, rowIndex: Int): String = when (rowIndex) {
         0 -> "Night Driving"
         1 -> "Night Driving_02"
+        in 2..8 -> "Night Driving_${(rowIndex + 1).toString().padStart(2, '0')}"
         else -> "Night Driving_${rowIndex + 1}"
     }
 

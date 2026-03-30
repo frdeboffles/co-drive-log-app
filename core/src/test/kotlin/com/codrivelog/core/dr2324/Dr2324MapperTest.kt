@@ -67,4 +67,40 @@ class Dr2324MapperTest {
         assertEquals("350h 0m", Dr2324Formatters.formatTime(doc.grandTotalMinutes))
         assertEquals("70h 0m", Dr2324Formatters.formatTime(doc.grandNightMinutes))
     }
+
+    @Test
+    fun `sessions on the same day are aggregated into one row`() {
+        val date = LocalDate.of(2026, 3, 4)
+        val sessions = listOf(
+            DriveSession(date = date, verifierInitials = "CGD", totalMinutes = 60, nightMinutes = 0, comments = "A"),
+            DriveSession(date = date, verifierInitials = "FRD", totalMinutes = 30, nightMinutes = 9, comments = "B"),
+        )
+
+        val doc = Dr2324Mapper.map(StudentProfile("A"), sessions)
+        val row = doc.pages.single().rows.single()
+
+        assertEquals("03/04/2026", row.date)
+        assertEquals("CGD/FRD", row.verifierInitials)
+        assertEquals("1h 30m", row.drivingTime)
+        assertEquals("0h 9m", row.nightDrivingTime)
+        assertEquals("A | B", row.comments)
+        assertEquals(90, row.totalMinutes)
+        assertEquals(9, row.nightMinutes)
+    }
+
+    @Test
+    fun `aggregated row with no night minutes shows zero padded night text`() {
+        val date = LocalDate.of(2026, 3, 4)
+        val sessions = listOf(
+            DriveSession(date = date, verifierInitials = "CGD", totalMinutes = 33, nightMinutes = 0, comments = "seeded"),
+            DriveSession(date = date, verifierInitials = "CGD", totalMinutes = 27, nightMinutes = 0, comments = "entry"),
+        )
+
+        val doc = Dr2324Mapper.map(StudentProfile("A"), sessions)
+        val row = doc.pages.single().rows.single()
+
+        assertEquals("1h 0m", row.drivingTime)
+        assertEquals("0h 00m", row.nightDrivingTime)
+        assertEquals(0, row.nightMinutes)
+    }
 }

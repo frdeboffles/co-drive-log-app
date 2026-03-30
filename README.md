@@ -108,6 +108,11 @@ cd ColoradoTeenDriverLog
 # Build + install release APK via USB (adb)
 ./gradlew installRelease
 
+# If multiple devices are connected, target one explicitly
+./gradlew installRelease -Pandroid.injected.device.serial=<device-serial>
+
+# Note: release build is debug-signed for local sideload convenience
+
 # Unit tests + coverage
 ./gradlew testDebugUnitTest
 ./gradlew koverHtmlReportDebug
@@ -137,6 +142,9 @@ cd ColoradoTeenDriverLog
 
     # Release install (single command build+install)
     ./gradlew installRelease
+
+    # If multiple devices/emulators are connected:
+    ./gradlew installRelease -Pandroid.injected.device.serial=<device-serial>
 
     # or debug manual install:
     adb install app/build/outputs/apk/debug/app-debug.apk

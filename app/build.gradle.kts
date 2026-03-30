@@ -8,9 +8,6 @@ plugins {
     alias(libs.plugins.room)
 }
 
-import org.gradle.api.GradleException
-import org.gradle.kotlin.dsl.register
-
 android {
     namespace = "com.codrivelog.app"
     compileSdk = 35
@@ -28,6 +25,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            // For local USB sideloads, sign release builds with the debug keystore
+            // so the APK is installable via `adb install` without extra key setup.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -158,21 +158,4 @@ dependencies {
     // Debug helpers
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-}
-
-tasks.register("installRelease") {
-    group = "install"
-    description = "Builds release APK and installs it via adb"
-    dependsOn("assembleRelease")
-
-    doLast {
-        val apk = layout.buildDirectory.file("outputs/apk/release/app-release.apk").get().asFile
-        if (!apk.exists()) {
-            throw GradleException("Release APK not found at ${apk.absolutePath}")
-        }
-
-        exec {
-            commandLine("adb", "install", "-r", apk.absolutePath)
-        }
-    }
 }

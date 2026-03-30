@@ -6,8 +6,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
-import android.widget.Toast
 import com.codrivelog.app.data.repository.DriveSessionRepository
+import com.codrivelog.core.dr2324.Dr2324Document
+import com.codrivelog.core.dr2324.Dr2324Mapper
+import com.codrivelog.core.dr2324.DriveSession as CoreDriveSession
+import com.codrivelog.core.dr2324.StudentProfile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -48,23 +51,35 @@ class ExportManager @Inject constructor(
      * @return [Uri] of the first saved file, or `null` on failure.
      */
     suspend fun exportPdf(studentName: String = ""): Uri? = withContext(Dispatchers.IO) {
-        val rows = fetchRows()
-        if (rows.isEmpty()) return@withContext null
+        val sessions = fetchCoreSessions()
+        if (sessions.isEmpty()) return@withContext null
 
+        val exporter = Dr2324PdfExporter(context)
         val mimeType = "application/pdf"
-        val sheets = PdfExporter.splitIntoSheets(rows)
-        val totalSheets = sheets.size
+        val document = Dr2324Mapper.map(
+            studentProfile = StudentProfile(studentName = studentName.trim()),
+            sessions = sessions,
+        )
+
+        val totalSheets = document.pages.size
         val uris = mutableListOf<Uri>()
 
-        sheets.forEachIndexed { index, sheetRows ->
+        document.pages.forEachIndexed { index, page ->
             val fileName = if (totalSheets == 1) {
                 "CoDriveLog_${dateSuffix}.pdf"
             } else {
                 "CoDriveLog_${dateSuffix}_part${(index + 1).toString().padStart(2, '0')}.pdf"
             }
 
+            val pageDocument = Dr2324Document(
+                studentProfile = document.studentProfile,
+                pages = listOf(page),
+                grandTotalMinutes = page.pageTotalMinutes,
+                grandNightMinutes = page.pageNightMinutes,
+            )
+
             val uri = saveToDownloads(fileName, mimeType) { stream ->
-                PdfExporter.write(sheetRows, studentName, stream)
+                exporter.export(pageDocument, stream)
             }
 
             if (uri != null) {
@@ -101,6 +116,20 @@ class ExportManager @Inject constructor(
             .first()
             .sortedBy { it.date }
             .map { DriveLogRow.from(it) }
+
+    private suspend fun fetchCoreSessions(): List<CoreDriveSession> =
+        repository.getAll()
+            .first()
+            .sortedBy { it.date }
+            .map { session ->
+                CoreDriveSession(
+                    date = session.date,
+                    verifierInitials = session.supervisorInitials,
+                    totalMinutes = session.totalMinutes,
+                    nightMinutes = session.nightMinutes,
+                    comments = session.comments.orEmpty(),
+                )
+            }
 
     /**
      * Insert an entry into [MediaStore.Downloads] and write content to it.

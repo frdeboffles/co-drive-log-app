@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "co-drive-log-app"
 include(":app")
+include(":core")

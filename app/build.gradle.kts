@@ -96,6 +96,8 @@ kover {
 }
 
 dependencies {
+    implementation(project(":core"))
+
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -126,6 +128,9 @@ dependencies {
 
     // DataStore
     implementation(libs.datastore.preferences)
+
+    // PDF template filling
+    implementation(libs.pdfbox.android)
 
     // ---- Unit Tests ----
     testImplementation(libs.junit5.api)

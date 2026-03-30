@@ -30,7 +30,29 @@ exports a printable log matching the official **DR 2324** form.
 - First-launch onboarding: student name + permit number + first supervisor
 - Dashboard edit for student profile (name + permit)
 - History edit/delete for each drive entry
+- Route tracking for active timer drives (start, periodic, stop points)
+- "View Route" action that opens recorded routes in Google Maps
 - Fully local — no cloud, no account, no analytics
+
+## Route Tracking, Privacy, and Battery
+
+Route capture is enabled only for **active timer-based drives**.
+
+- Manual entries do **not** capture route points
+- Route points are sampled at drive start, during drive, and at drive stop
+- Points are filtered by GPS accuracy and deduped to reduce noisy/redundant samples
+- Route data is stored locally in the app database and is not uploaded to a server
+
+Battery behavior:
+
+- Sampling is intentionally low-frequency to reduce battery drain
+- Existing location polling is reused rather than continuous high-rate tracking
+- If GPS is unavailable, drive timing still works and route capture simply skips points
+
+Viewing route data:
+
+- In **Drive History**, sessions with route points show a **View Route** action
+- View Route opens Google Maps directions using recorded start/end/waypoints
 
 ## Debug Mode Utilities
 

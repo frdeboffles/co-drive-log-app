@@ -127,4 +127,24 @@ class DriveRoutePointDaoTest {
         assertEquals(0, routeDao.countBySession(sessionId))
         assertTrue(routeDao.getBySession(sessionId).first().isEmpty())
     }
+
+    @Test
+    fun getSessionIdsWithPoints_returns_only_sessions_that_have_points() = runTest {
+        val sessionA = insertSession()
+        val sessionB = insertSession()
+
+        routeDao.insert(
+            DriveRoutePoint(
+                sessionId = sessionA,
+                timestamp = LocalDateTime.of(2026, 3, 30, 10, 0),
+                latitude = 39.7392,
+                longitude = -104.9903,
+                accuracyMeters = 10f,
+            )
+        )
+
+        val ids = routeDao.getSessionIdsWithPoints().first().toSet()
+        assertTrue(ids.contains(sessionA))
+        assertTrue(!ids.contains(sessionB))
+    }
 }

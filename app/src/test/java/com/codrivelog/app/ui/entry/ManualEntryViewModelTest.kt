@@ -1,8 +1,10 @@
 package com.codrivelog.app.ui.entry
 
 import app.cash.turbine.test
+import com.codrivelog.app.data.fake.FakeDriveRoutePointDao
 import com.codrivelog.app.data.fake.FakeDriveSessionDao
 import com.codrivelog.app.data.fake.FakeSupervisorDao
+import com.codrivelog.app.data.repository.DriveRouteRepository
 import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.data.repository.SupervisorRepository
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +31,8 @@ class ManualEntryViewModelTest {
     private lateinit var supervisorDao:  FakeSupervisorDao
     private lateinit var driveRepo:      DriveSessionRepository
     private lateinit var supervisorRepo: SupervisorRepository
+    private lateinit var routeRepo:      DriveRouteRepository
+    private lateinit var routeDao:       FakeDriveRoutePointDao
     private lateinit var viewModel:      ManualEntryViewModel
 
     @BeforeEach
@@ -36,8 +40,10 @@ class ManualEntryViewModelTest {
         Dispatchers.setMain(testDispatcher)
         driveDao       = FakeDriveSessionDao()
         supervisorDao  = FakeSupervisorDao()
+        routeDao       = FakeDriveRoutePointDao()
         driveRepo      = DriveSessionRepository(driveDao)
         supervisorRepo = SupervisorRepository(supervisorDao)
+        routeRepo      = DriveRouteRepository(routeDao)
         viewModel      = ManualEntryViewModel(driveRepo, supervisorRepo)
     }
 
@@ -171,6 +177,25 @@ class ManualEntryViewModelTest {
         val sessions = driveDao.getAll()
         sessions.test {
             assertEquals(90, awaitItem().first().totalMinutes)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `manual save does not create route points`() = runTest {
+        viewModel.save(
+            date               = LocalDate.of(2025, 6, 21),
+            startTime          = LocalTime.of(9, 0),
+            endTime            = LocalTime.of(10, 30),
+            supervisorName     = "Jane Doe",
+            supervisorInitials = "JD",
+            comments           = "",
+        )
+
+        val sessions = driveDao.getAll()
+        sessions.test {
+            val session = awaitItem().first()
+            assertEquals(0, routeRepo.countBySession(session.id))
             cancelAndIgnoreRemainingEvents()
         }
     }

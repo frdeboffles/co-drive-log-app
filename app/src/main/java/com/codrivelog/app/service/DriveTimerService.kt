@@ -285,24 +285,18 @@ class DriveTimerService : Service() {
 
     private fun maybeRecordRoutePoint(fix: LatLng, now: LocalDateTime, force: Boolean) {
         val recentAccepted = routePointsBuffer.lastOrNull()
-        val withinStrictAccuracy = fix.accuracyMeters <= ROUTE_MAX_ACCURACY_METERS
-        val withinFallbackAccuracy = fix.accuracyMeters <= ROUTE_FALLBACK_MAX_ACCURACY_METERS
-        val minutesSinceLast = recentAccepted?.let { Duration.between(it.timestamp, now).toMinutes() } ?: Long.MAX_VALUE
-        val acceptForFallback = withinFallbackAccuracy && minutesSinceLast >= ROUTE_FALLBACK_STALE_MINUTES
-
-        if (!force && !(withinStrictAccuracy || acceptForFallback)) return
-
-        if (!force && recentAccepted != null) {
-            val distanceMeters = distanceMeters(
-                recentAccepted.latitude,
-                recentAccepted.longitude,
-                fix.latitude,
-                fix.longitude,
-            )
-            if (distanceMeters < ROUTE_DEDUPE_DISTANCE_METERS && minutesSinceLast < ROUTE_DEDUPE_MIN_INTERVAL_MINUTES) {
-                return
-            }
-        }
+        val shouldRecord = shouldRecordRoutePoint(
+            recentAccepted = recentAccepted,
+            fix = fix,
+            now = now,
+            force = force,
+            strictAccuracyMeters = ROUTE_MAX_ACCURACY_METERS,
+            fallbackAccuracyMeters = ROUTE_FALLBACK_MAX_ACCURACY_METERS,
+            fallbackStaleMinutes = ROUTE_FALLBACK_STALE_MINUTES,
+            dedupeDistanceMeters = ROUTE_DEDUPE_DISTANCE_METERS,
+            dedupeMinIntervalMinutes = ROUTE_DEDUPE_MIN_INTERVAL_MINUTES,
+        )
+        if (!shouldRecord) return
 
         routePointsBuffer.add(
             DriveRoutePointDraft(
@@ -389,12 +383,48 @@ class DriveTimerService : Service() {
     }
 }
 
-private data class DriveRoutePointDraft(
+internal data class DriveRoutePointDraft(
     val timestamp: LocalDateTime,
     val latitude: Double,
     val longitude: Double,
     val accuracyMeters: Float,
 )
+
+internal fun shouldRecordRoutePoint(
+    recentAccepted: DriveRoutePointDraft?,
+    fix: LatLng,
+    now: LocalDateTime,
+    force: Boolean,
+    strictAccuracyMeters: Float,
+    fallbackAccuracyMeters: Float,
+    fallbackStaleMinutes: Long,
+    dedupeDistanceMeters: Double,
+    dedupeMinIntervalMinutes: Long,
+): Boolean {
+    if (force) return true
+
+    val minutesSinceLast = recentAccepted
+        ?.let { Duration.between(it.timestamp, now).toMinutes() }
+        ?: Long.MAX_VALUE
+    val withinStrictAccuracy = fix.accuracyMeters <= strictAccuracyMeters
+    val withinFallbackAccuracy = fix.accuracyMeters <= fallbackAccuracyMeters
+    val acceptForFallback = withinFallbackAccuracy && minutesSinceLast >= fallbackStaleMinutes
+    if (!(withinStrictAccuracy || acceptForFallback)) return false
+
+    if (recentAccepted != null) {
+        val distanceMeters = distanceMeters(
+            recentAccepted.latitude,
+            recentAccepted.longitude,
+            fix.latitude,
+            fix.longitude,
+        )
+        if (distanceMeters < dedupeDistanceMeters && minutesSinceLast < dedupeMinIntervalMinutes) {
+            return false
+        }
+    }
+
+    return true
+}
 
 private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
     val r = 6_371_000.0

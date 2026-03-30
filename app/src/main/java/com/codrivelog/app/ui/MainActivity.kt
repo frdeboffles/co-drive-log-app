@@ -55,7 +55,14 @@ class MainActivity : ComponentActivity() {
             CoDriveLogTheme {
                 CoDriveLogNavHost(
                     showOnboarding = uiState.showOnboarding,
-                    onExportPdf    = { exportPdf(uiState.studentName, uiState.permitNumber) },
+                    onExportPdf    = { signatureName, signatureDate ->
+                        exportPdf(
+                            studentName = uiState.studentName,
+                            permitNumber = uiState.permitNumber,
+                            signatureName = signatureName,
+                            signatureDate = signatureDate,
+                        )
+                    },
                     onExportCsv    = { exportCsv(uiState.studentName) },
                 )
             }
@@ -73,9 +80,19 @@ class MainActivity : ComponentActivity() {
         permissionLauncher.launch(permissions.toTypedArray())
     }
 
-    private fun exportPdf(studentName: String, permitNumber: String) {
+    private fun exportPdf(
+        studentName: String,
+        permitNumber: String,
+        signatureName: String,
+        signatureDate: String,
+    ) {
         lifecycleScope.launch {
-            val uri = exportManager.exportPdf(studentName, permitNumber)
+            val uri = exportManager.exportPdf(
+                studentName = studentName,
+                permitNumber = permitNumber,
+                signatureName = signatureName,
+                signatureDate = signatureDate,
+            )
             if (uri != null) {
                 startActivity(
                     android.content.Intent.createChooser(

@@ -52,6 +52,20 @@ class ExportManager @Inject constructor(
      * @return [Uri] of the first saved file, or `null` on failure.
      */
     suspend fun exportPdf(studentName: String = "", permitNumber: String = ""): Uri? = withContext(Dispatchers.IO) {
+        exportPdf(
+            studentName = studentName,
+            permitNumber = permitNumber,
+            signatureName = "",
+            signatureDate = "",
+        )
+    }
+
+    suspend fun exportPdf(
+        studentName: String = "",
+        permitNumber: String = "",
+        signatureName: String = "",
+        signatureDate: String = "",
+    ): Uri? = withContext(Dispatchers.IO) {
         val sessions = fetchCoreSessions()
         if (sessions.isEmpty()) return@withContext null
 
@@ -61,6 +75,8 @@ class ExportManager @Inject constructor(
             studentProfile = StudentProfile(
                 studentName = studentName.trim(),
                 permitNumber = permitNumber.trim(),
+                signatureName = signatureName.trim(),
+                signatureDate = signatureDate.trim(),
             ),
             sessions = sessions,
         )
@@ -78,8 +94,8 @@ class ExportManager @Inject constructor(
             val pageDocument = Dr2324Document(
                 studentProfile = document.studentProfile,
                 pages = listOf(page),
-                grandTotalMinutes = page.pageTotalMinutes,
-                grandNightMinutes = page.pageNightMinutes,
+                grandTotalMinutes = document.grandTotalMinutes,
+                grandNightMinutes = document.grandNightMinutes,
             )
 
             val uri = saveToDownloads(fileName, mimeType) { stream ->

@@ -20,7 +20,12 @@ class Dr2324PdfExporterInstrumentedTest {
         val exporter = Dr2324PdfExporter(context)
 
         val document = Dr2324Document(
-            studentProfile = StudentProfile(studentName = "Test Student", permitNumber = "P1234"),
+            studentProfile = StudentProfile(
+                studentName = "Test Student",
+                permitNumber = "P1234",
+                signatureName = "Jane Doe",
+                signatureDate = "03/29/2026",
+            ),
             pages = listOf(
                 Dr2324Page(
                     rows = listOf(

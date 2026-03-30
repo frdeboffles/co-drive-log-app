@@ -2,8 +2,11 @@ package com.codrivelog.app.ui.export
 
 import app.cash.turbine.test
 import com.codrivelog.app.data.fake.FakeDriveSessionDao
+import com.codrivelog.app.data.fake.FakeSupervisorDao
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.model.Supervisor
 import com.codrivelog.app.data.repository.DriveSessionRepository
+import com.codrivelog.app.data.repository.SupervisorRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -25,6 +28,7 @@ class ExportViewModelTest {
 
     private lateinit var dao:       FakeDriveSessionDao
     private lateinit var repo:      DriveSessionRepository
+    private lateinit var supervisorRepo: SupervisorRepository
     private lateinit var viewModel: ExportViewModel
 
     @BeforeEach
@@ -32,7 +36,8 @@ class ExportViewModelTest {
         Dispatchers.setMain(testDispatcher)
         dao       = FakeDriveSessionDao()
         repo      = DriveSessionRepository(dao)
-        viewModel = ExportViewModel(repo)
+        supervisorRepo = SupervisorRepository(FakeSupervisorDao())
+        viewModel = ExportViewModel(repo, supervisorRepo)
     }
 
     @AfterEach
@@ -90,6 +95,20 @@ class ExportViewModelTest {
 
         viewModel.uiState.test {
             assertEquals(1.5f, awaitItem().nightHours, 0.001f)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `ui state exposes supervisors for PDF signature picker`() = runTest {
+        supervisorRepo.insert(Supervisor(name = "Jane Doe", initials = "JD"))
+        supervisorRepo.insert(Supervisor(name = "Alex Roe", initials = "AR"))
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertEquals(2, state.supervisors.size)
+            assertEquals("Alex Roe", state.supervisors[0].name)
+            assertEquals("Jane Doe", state.supervisors[1].name)
             cancelAndIgnoreRemainingEvents()
         }
     }

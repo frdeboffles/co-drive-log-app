@@ -35,13 +35,13 @@ sealed class Screen(val route: String) {
  * fully testable without a real Android runtime.
  *
  * @param showOnboarding `true` on first launch (DataStore flag not yet set).
- * @param onExportPdf    Invoked when the user confirms PDF export.
+ * @param onExportPdf    Invoked when the user confirms PDF export/signature details.
  * @param onExportCsv    Invoked when the user confirms CSV export.
  */
 @Composable
 fun CoDriveLogNavHost(
     showOnboarding: Boolean = false,
-    onExportPdf:    () -> Unit = {},
+    onExportPdf:    (String, String) -> Unit = { _, _ -> },
     onExportCsv:    () -> Unit = {},
 ) {
     val navController    = rememberNavController()

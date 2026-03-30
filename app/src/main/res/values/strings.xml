@@ -66,6 +66,11 @@
     <string name="desc_export_pdf">Generates a printable Colorado DR 2324 formatted driving log.</string>
     <string name="desc_export_csv">Exports all drive sessions as a spreadsheet-compatible CSV file.</string>
     <string name="button_export_pdf">Export PDF</string>
+    <string name="dialog_pdf_signature_title">PDF Signature</string>
+    <string name="button_pick_date">Pick Date</string>
+    <string name="button_export">Export</string>
+    <string name="hint_signed_pdf_requires_supervisor">Add at least one supervisor to export a signed PDF.</string>
+    <string name="hint_record_drive_to_export">Record at least one drive to enable export.</string>
     <string name="button_export_csv">Export CSV</string>
     <string name="label_total_sessions">Total sessions</string>
     <string name="label_total_hours_value">%1$.1f hrs total · %2$.1f hrs night</string>

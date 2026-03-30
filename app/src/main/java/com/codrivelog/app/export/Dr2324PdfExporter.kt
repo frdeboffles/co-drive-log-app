@@ -46,6 +46,8 @@ class Dr2324PdfExporter(private val context: Context) {
         var filled = 0
         if (setField(acroForm, Dr2324FieldNames.STUDENT_NAME, document.studentProfile.studentName)) filled++
         if (setField(acroForm, Dr2324FieldNames.PERMIT_NUMBER, document.studentProfile.permitNumber)) filled++
+        if (setField(acroForm, Dr2324FieldNames.SIGNATURE_NAME, document.studentProfile.signatureName)) filled++
+        if (setField(acroForm, Dr2324FieldNames.SIGNATURE_DATE, document.studentProfile.signatureDate)) filled++
 
         document.pages.forEachIndexed { pageIndex, page ->
             page.rows.forEachIndexed { rowIndex, row ->

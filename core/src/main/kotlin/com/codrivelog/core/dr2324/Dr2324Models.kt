@@ -6,6 +6,8 @@ import java.time.format.DateTimeFormatter
 data class StudentProfile(
     val studentName: String,
     val permitNumber: String = "",
+    val signatureName: String = "",
+    val signatureDate: String = "",
 )
 
 data class DriveSession(

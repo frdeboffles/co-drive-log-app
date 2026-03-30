@@ -69,7 +69,7 @@ class Dr2324MapperTest {
     }
 
     @Test
-    fun `sessions on the same day are aggregated into one row`() {
+    fun `sessions on the same day with different verifiers use separate rows`() {
         val date = LocalDate.of(2026, 3, 4)
         val sessions = listOf(
             DriveSession(date = date, verifierInitials = "CGD", totalMinutes = 60, nightMinutes = 0, comments = "A"),
@@ -77,15 +77,20 @@ class Dr2324MapperTest {
         )
 
         val doc = Dr2324Mapper.map(StudentProfile("A"), sessions)
-        val row = doc.pages.single().rows.single()
+        val rows = doc.pages.single().rows
 
-        assertEquals("03/04/2026", row.date)
-        assertEquals("CGD/FRD", row.verifierInitials)
-        assertEquals("1h 30m", row.drivingTime)
-        assertEquals("0h 9m", row.nightDrivingTime)
-        assertEquals("A | B", row.comments)
-        assertEquals(90, row.totalMinutes)
-        assertEquals(9, row.nightMinutes)
+        assertEquals(2, rows.size)
+        assertEquals("03/04/2026", rows[0].date)
+        assertEquals("CGD", rows[0].verifierInitials)
+        assertEquals("1h 0m", rows[0].drivingTime)
+        assertEquals("0h 00m", rows[0].nightDrivingTime)
+        assertEquals("A", rows[0].comments)
+
+        assertEquals("03/04/2026", rows[1].date)
+        assertEquals("FRD", rows[1].verifierInitials)
+        assertEquals("0h 30m", rows[1].drivingTime)
+        assertEquals("0h 9m", rows[1].nightDrivingTime)
+        assertEquals("B", rows[1].comments)
     }
 
     @Test

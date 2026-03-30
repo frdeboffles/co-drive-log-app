@@ -8,17 +8,13 @@ object Dr2324Mapper {
         sessions: List<DriveSession>,
     ): Dr2324Document {
         val rows = sessions
-            .groupBy { it.date }
+            .groupBy { it.date to it.verifierInitials.trim() }
             .toList()
-            .sortedBy { it.first }
-            .map { (date, groupedSessions) ->
+            .sortedWith(compareBy({ it.first.first }, { it.first.second }))
+            .map { (key, groupedSessions) ->
+                val (date, verifierInitials) = key
                 val totalMinutes = groupedSessions.sumOf { it.totalMinutes }
                 val nightMinutes = groupedSessions.sumOf { it.nightMinutes }
-                val initials = groupedSessions
-                    .map { it.verifierInitials.trim() }
-                    .filter { it.isNotBlank() }
-                    .distinct()
-                    .joinToString("/")
                 val comments = groupedSessions
                     .map { it.comments.trim() }
                     .filter { it.isNotBlank() }
@@ -26,7 +22,7 @@ object Dr2324Mapper {
 
                 Dr2324Row(
                     date = Dr2324Formatters.formatDate(date),
-                    verifierInitials = initials,
+                    verifierInitials = verifierInitials,
                     drivingTime = Dr2324Formatters.formatTime(totalMinutes),
                     nightDrivingTime = if (nightMinutes == 0) "0h 00m" else Dr2324Formatters.formatTime(nightMinutes),
                     comments = comments,

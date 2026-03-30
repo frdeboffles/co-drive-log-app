@@ -17,6 +17,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Person
@@ -35,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
@@ -130,6 +134,9 @@ private fun NamePage(
     onNext:       () -> Unit,
     modifier:     Modifier = Modifier,
 ) {
+    val permitFocusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -169,7 +176,9 @@ private fun NamePage(
                 capitalization = KeyboardCapitalization.Words,
                 imeAction      = ImeAction.Next,
             ),
-            keyboardActions = KeyboardActions(onNext = { onNext() }),
+            keyboardActions = KeyboardActions(
+                onNext = { permitFocusRequester.requestFocus() },
+            ),
             modifier      = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(12.dp))
@@ -184,9 +193,17 @@ private fun NamePage(
             } else null,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Characters,
-                imeAction      = ImeAction.Next,
+                imeAction      = ImeAction.Done,
             ),
-            modifier       = Modifier.fillMaxWidth(),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    focusManager.clearFocus()
+                    onNext()
+                },
+            ),
+            modifier       = Modifier
+                .fillMaxWidth()
+                .focusRequester(permitFocusRequester),
         )
         Spacer(Modifier.height(24.dp))
         Button(

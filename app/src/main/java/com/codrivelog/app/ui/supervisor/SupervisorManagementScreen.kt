@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -143,44 +144,41 @@ private fun AddSupervisorRow(onAdd: (name: String, initials: String) -> Boolean)
                 text  = "Add Supervisor",
                 style = MaterialTheme.typography.titleSmall,
             )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment     = Alignment.Top,
+            OutlinedTextField(
+                value         = name,
+                onValueChange = { name = it; nameErr = false },
+                label         = { Text(stringResource(R.string.hint_supervisor_name)) },
+                isError       = nameErr,
+                singleLine    = true,
+                modifier      = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value         = initials,
+                onValueChange = { initials = it.uppercase().take(4) },
+                label         = { Text(stringResource(R.string.hint_supervisor_initials)) },
+                singleLine    = true,
+                modifier      = Modifier.fillMaxWidth(),
+            )
+            androidx.compose.material3.Button(
+                onClick = {
+                    val added = onAdd(name.trim(), initials.trim())
+                    if (added) {
+                        name     = ""
+                        initials = ""
+                        nameErr  = false
+                    } else {
+                        nameErr = true
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                OutlinedTextField(
-                    value         = name,
-                    onValueChange = { name = it; nameErr = false },
-                    label         = { Text(stringResource(R.string.hint_supervisor_name)) },
-                    isError       = nameErr,
-                    singleLine    = true,
-                    modifier      = Modifier.weight(1f),
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                 )
-                OutlinedTextField(
-                    value         = initials,
-                    onValueChange = { initials = it.uppercase().take(4) },
-                    label         = { Text(stringResource(R.string.hint_supervisor_initials)) },
-                    singleLine    = true,
-                    modifier      = Modifier.width(96.dp),
-                )
-                IconButton(
-                    onClick = {
-                        val added = onAdd(name.trim(), initials.trim())
-                        if (added) {
-                            name     = ""
-                            initials = ""
-                            nameErr  = false
-                        } else {
-                            nameErr = true
-                        }
-                    },
-                    modifier = Modifier.padding(top = 4.dp),
-                ) {
-                    Icon(
-                        imageVector        = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.button_add_supervisor),
-                        tint               = MaterialTheme.colorScheme.primary,
-                    )
-                }
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.button_add_supervisor))
             }
         }
     }

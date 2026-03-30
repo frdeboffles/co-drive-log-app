@@ -27,6 +27,7 @@ class MainViewModelTest {
 
     private val completeFlow = MutableStateFlow(false)
     private val nameFlow     = MutableStateFlow("")
+    private val permitFlow   = MutableStateFlow("")
 
     private val onboardingRepo = mockk<OnboardingRepository>(relaxed = true)
 
@@ -36,6 +37,7 @@ class MainViewModelTest {
     fun setUp() {
         every { onboardingRepo.isOnboardingComplete } returns completeFlow
         every { onboardingRepo.studentName }           returns nameFlow
+        every { onboardingRepo.permitNumber }          returns permitFlow
         Dispatchers.setMain(testDispatcher)
         viewModel = MainViewModel(onboardingRepo)
     }

@@ -23,7 +23,7 @@ class OnboardingViewModel @Inject constructor(
     private val supervisorRepo: SupervisorRepository,
 ) : ViewModel() {
 
-    /** Current page index (0 = name entry, 1 = supervisor entry). */
+    /** Current page index (0 = profile entry, 1 = supervisor entry). */
     private val _page = MutableStateFlow(0)
     val page: StateFlow<Int> = _page.asStateFlow()
 
@@ -35,10 +35,14 @@ class OnboardingViewModel @Inject constructor(
     /** Validation error message, or null when the form is valid. */
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    /** Advance from the name page to the supervisor page. */
-    fun nextPage(studentName: String) {
+    /** Advance from the profile page to the supervisor page. */
+    fun nextPage(studentName: String, permitNumber: String) {
         if (studentName.isBlank()) {
             _error.value = "Please enter the student's name."
+            return
+        }
+        if (permitNumber.isBlank()) {
+            _error.value = "Please enter the permit number."
             return
         }
         _error.value = null
@@ -57,6 +61,7 @@ class OnboardingViewModel @Inject constructor(
      */
     fun finish(
         studentName:        String,
+        permitNumber:       String,
         supervisorName:     String,
         supervisorInitials: String,
     ) {
@@ -77,7 +82,7 @@ class OnboardingViewModel @Inject constructor(
                     initials = supervisorInitials.trim().uppercase(),
                 )
             )
-            onboardingRepo.completeOnboarding(studentName)
+            onboardingRepo.completeOnboarding(studentName, permitNumber)
             _onboardingComplete.value = true
         }
     }

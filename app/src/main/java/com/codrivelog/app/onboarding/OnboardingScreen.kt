@@ -46,7 +46,7 @@ import com.codrivelog.app.ui.theme.CoDriveLogTheme
 /**
  * Full-screen onboarding flow shown on first launch.
  *
- * **Page 0** — Captures the student's name.
+ * **Page 0** — Captures the student's name and permit number.
  * **Page 1** — Captures the first supervisor's name and initials.
  *
  * When the user completes page 1 the ViewModel persists both the student name
@@ -66,6 +66,7 @@ fun OnboardingScreen(
 
     // Student name kept in saveable state so it survives page transitions
     var studentName        by rememberSaveable { mutableStateOf("") }
+    var permitNumber       by rememberSaveable { mutableStateOf("") }
     var supervisorName     by rememberSaveable { mutableStateOf("") }
     var supervisorInitials by rememberSaveable { mutableStateOf("") }
 
@@ -88,9 +89,11 @@ fun OnboardingScreen(
             when (currentPage) {
                 0 -> NamePage(
                     studentName  = studentName,
+                    permitNumber = permitNumber,
                     onNameChange = { studentName = it; viewModel.clearError() },
+                    onPermitChange = { permitNumber = it; viewModel.clearError() },
                     error        = error,
-                    onNext       = { viewModel.nextPage(studentName) },
+                    onNext       = { viewModel.nextPage(studentName, permitNumber) },
                     modifier     = Modifier.padding(padding),
                 )
                 else -> SupervisorPage(
@@ -103,6 +106,7 @@ fun OnboardingScreen(
                     onFinish              = {
                         viewModel.finish(
                             studentName        = studentName,
+                            permitNumber       = permitNumber,
                             supervisorName     = supervisorName,
                             supervisorInitials = supervisorInitials,
                         )
@@ -119,7 +123,9 @@ fun OnboardingScreen(
 @Composable
 private fun NamePage(
     studentName:  String,
+    permitNumber: String,
     onNameChange: (String) -> Unit,
+    onPermitChange: (String) -> Unit,
     error:        String?,
     onNext:       () -> Unit,
     modifier:     Modifier = Modifier,
@@ -155,14 +161,32 @@ private fun NamePage(
             onValueChange = onNameChange,
             label         = { Text("Student's full name") },
             singleLine    = true,
-            isError       = error != null,
-            supportingText = error?.let { { Text(it) } },
+            isError       = error != null && studentName.isBlank(),
+            supportingText = if (error != null && studentName.isBlank()) {
+                { Text(error) }
+            } else null,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Words,
                 imeAction      = ImeAction.Next,
             ),
             keyboardActions = KeyboardActions(onNext = { onNext() }),
             modifier      = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value          = permitNumber,
+            onValueChange  = onPermitChange,
+            label          = { Text("Permit number") },
+            singleLine     = true,
+            isError        = error != null && permitNumber.isBlank(),
+            supportingText = if (error != null && permitNumber.isBlank()) {
+                { Text(error) }
+            } else null,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Characters,
+                imeAction      = ImeAction.Next,
+            ),
+            modifier       = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(24.dp))
         Button(
@@ -266,7 +290,9 @@ private fun PreviewNamePage() {
     CoDriveLogTheme {
         NamePage(
             studentName  = "",
+            permitNumber = "",
             onNameChange = {},
+            onPermitChange = {},
             error        = null,
             onNext       = {},
         )
@@ -295,7 +321,9 @@ private fun PreviewNamePageError() {
     CoDriveLogTheme {
         NamePage(
             studentName  = "",
+            permitNumber = "",
             onNameChange = {},
+            onPermitChange = {},
             error        = "Please enter the student's name.",
             onNext       = {},
         )

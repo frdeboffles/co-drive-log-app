@@ -47,17 +47,21 @@ class ExportManager @Inject constructor(
     /**
      * Export all sessions as a PDF and save it to Downloads.
      *
-     * @param studentName Student name to embed in the PDF header.
+     * @param studentName  Student name to embed in the PDF header.
+     * @param permitNumber Permit number to embed in the PDF header.
      * @return [Uri] of the first saved file, or `null` on failure.
      */
-    suspend fun exportPdf(studentName: String = ""): Uri? = withContext(Dispatchers.IO) {
+    suspend fun exportPdf(studentName: String = "", permitNumber: String = ""): Uri? = withContext(Dispatchers.IO) {
         val sessions = fetchCoreSessions()
         if (sessions.isEmpty()) return@withContext null
 
         val exporter = Dr2324PdfExporter(context)
         val mimeType = "application/pdf"
         val document = Dr2324Mapper.map(
-            studentProfile = StudentProfile(studentName = studentName.trim()),
+            studentProfile = StudentProfile(
+                studentName = studentName.trim(),
+                permitNumber = permitNumber.trim(),
+            ),
             sessions = sessions,
         )
 

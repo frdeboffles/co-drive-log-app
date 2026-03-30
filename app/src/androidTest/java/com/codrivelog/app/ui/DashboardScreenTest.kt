@@ -14,12 +14,18 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.codrivelog.app.data.fake.FakeDriveSessionRepository
+import com.codrivelog.app.data.fake.FakeSupervisorDao
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.repository.SupervisorRepository
+import com.codrivelog.app.onboarding.OnboardingRepository
 import com.codrivelog.app.ui.dashboard.CircularHoursCard
 import com.codrivelog.app.ui.dashboard.DashboardScreen
 import com.codrivelog.app.ui.dashboard.DashboardUiState
 import com.codrivelog.app.ui.dashboard.DashboardViewModel
 import com.codrivelog.app.ui.theme.CoDriveLogTheme
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -170,8 +176,11 @@ class DashboardScreenTest {
     private fun makeFakeDashboardViewModel(
         initialState: DashboardUiState,
     ): DashboardViewModel = DashboardViewModel(
-        repository = FakeDriveSessionRepository(
-            initialSessions = initialState.recentDrives,
-        )
+        repository = FakeDriveSessionRepository(initialSessions = initialState.recentDrives),
+        supervisorRepository = SupervisorRepository(FakeSupervisorDao()),
+        onboardingRepository = mockk<OnboardingRepository> {
+            every { studentName } returns flowOf("")
+            every { permitNumber } returns flowOf("")
+        },
     )
 }

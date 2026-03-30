@@ -26,11 +26,13 @@ class MainViewModel @Inject constructor(
         combine(
             onboardingRepo.isOnboardingComplete,
             onboardingRepo.studentName,
-        ) { complete, name ->
+            onboardingRepo.permitNumber,
+        ) { complete, name, permit ->
             MainUiState(
                 ready          = true,
                 showOnboarding = !complete,
                 studentName    = name,
+                permitNumber   = permit,
             )
         }
         .stateIn(
@@ -44,9 +46,11 @@ class MainViewModel @Inject constructor(
  * @property ready          `false` until the first DataStore emission arrives.
  * @property showOnboarding `true` when onboarding has not yet been completed.
  * @property studentName    The persisted student name (may be empty).
+ * @property permitNumber   The persisted permit number (may be empty).
  */
 data class MainUiState(
     val ready:          Boolean = false,
     val showOnboarding: Boolean = false,
     val studentName:    String  = "",
+    val permitNumber:   String  = "",
 )

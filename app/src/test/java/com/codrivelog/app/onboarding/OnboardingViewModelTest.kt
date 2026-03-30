@@ -69,14 +69,14 @@ class OnboardingViewModelTest {
 
     @Test
     fun `nextPage with blank name sets error and stays on page 0`() = runTest {
-        viewModel.nextPage("  ")
+        viewModel.nextPage("  ", "P1234")
         assertEquals(0, viewModel.page.value)
         assertNotNull(viewModel.error.value)
     }
 
     @Test
     fun `nextPage with valid name advances to page 1 and clears error`() = runTest {
-        viewModel.nextPage("Alex Rider")
+        viewModel.nextPage("Alex Rider", "P1234")
         assertEquals(1, viewModel.page.value)
         assertNull(viewModel.error.value)
     }
@@ -85,7 +85,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun `previousPage returns to page 0 and clears error`() = runTest {
-        viewModel.nextPage("Alex Rider")
+        viewModel.nextPage("Alex Rider", "P1234")
         viewModel.previousPage()
         assertEquals(0, viewModel.page.value)
         assertNull(viewModel.error.value)
@@ -95,39 +95,39 @@ class OnboardingViewModelTest {
 
     @Test
     fun `finish with blank supervisor name sets error`() = runTest {
-        viewModel.finish("Alex Rider", "  ", "JD")
+        viewModel.finish("Alex Rider", "P1234", "  ", "JD")
         assertNotNull(viewModel.error.value)
         assertFalse(viewModel.onboardingComplete.value)
     }
 
     @Test
     fun `finish with blank initials sets error`() = runTest {
-        viewModel.finish("Alex Rider", "Jane Doe", "  ")
+        viewModel.finish("Alex Rider", "P1234", "Jane Doe", "  ")
         assertNotNull(viewModel.error.value)
         assertFalse(viewModel.onboardingComplete.value)
     }
 
     @Test
     fun `finish with valid inputs sets onboardingComplete to true`() = runTest {
-        coJustRun { onboardingRepo.completeOnboarding(any()) }
+        coJustRun { onboardingRepo.completeOnboarding(any(), any()) }
 
-        viewModel.finish("Alex Rider", "Jane Doe", "JD")
+        viewModel.finish("Alex Rider", "P1234", "Jane Doe", "JD")
         assertTrue(viewModel.onboardingComplete.value)
     }
 
     @Test
     fun `finish calls completeOnboarding with the student name`() = runTest {
-        coJustRun { onboardingRepo.completeOnboarding(any()) }
+        coJustRun { onboardingRepo.completeOnboarding(any(), any()) }
 
-        viewModel.finish("Alex Rider", "Jane Doe", "JD")
-        coVerify { onboardingRepo.completeOnboarding("Alex Rider") }
+        viewModel.finish("Alex Rider", "P1234", "Jane Doe", "JD")
+        coVerify { onboardingRepo.completeOnboarding("Alex Rider", "P1234") }
     }
 
     @Test
     fun `finish inserts supervisor into repository`() = runTest {
-        coJustRun { onboardingRepo.completeOnboarding(any()) }
+        coJustRun { onboardingRepo.completeOnboarding(any(), any()) }
 
-        viewModel.finish("Alex Rider", "Jane Doe", "jd")
+        viewModel.finish("Alex Rider", "P1234", "Jane Doe", "jd")
 
         supervisorRepo.getAll().test {
             val list = awaitItem()
@@ -142,7 +142,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun `clearError nulls out the error`() = runTest {
-        viewModel.nextPage("  ")          // trigger error
+        viewModel.nextPage("  ", "P1234") // trigger error
         assertNotNull(viewModel.error.value)
         viewModel.clearError()
         assertNull(viewModel.error.value)

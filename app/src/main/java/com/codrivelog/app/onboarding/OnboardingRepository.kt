@@ -30,6 +30,7 @@ class OnboardingRepository @Inject constructor(
     companion object {
         val KEY_COMPLETED    = booleanPreferencesKey("onboarding_completed")
         val KEY_STUDENT_NAME = stringPreferencesKey("student_name")
+        val KEY_PERMIT_NUMBER = stringPreferencesKey("permit_number")
     }
 
     /** Emits `true` once onboarding has been completed. */
@@ -44,15 +45,31 @@ class OnboardingRepository @Inject constructor(
             prefs[KEY_STUDENT_NAME] ?: ""
         }
 
+    /** Emits the stored permit number, or empty string if not yet set. */
+    val permitNumber: Flow<String> =
+        context.dataStore.data.map { prefs ->
+            prefs[KEY_PERMIT_NUMBER] ?: ""
+        }
+
     /**
      * Save the student name and mark onboarding as complete.
      *
-     * @param studentName The student's full name.
+     * @param studentName  The student's full name.
+     * @param permitNumber The student's permit number.
      */
-    suspend fun completeOnboarding(studentName: String) {
+    suspend fun completeOnboarding(studentName: String, permitNumber: String) {
         context.dataStore.edit { prefs ->
-            prefs[KEY_STUDENT_NAME] = studentName.trim()
-            prefs[KEY_COMPLETED]    = true
+            prefs[KEY_STUDENT_NAME]  = studentName.trim()
+            prefs[KEY_PERMIT_NUMBER] = permitNumber.trim()
+            prefs[KEY_COMPLETED]     = true
+        }
+    }
+
+    /** Update only the saved student profile details. */
+    suspend fun updateStudentProfile(studentName: String, permitNumber: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_STUDENT_NAME]  = studentName.trim()
+            prefs[KEY_PERMIT_NUMBER] = permitNumber.trim()
         }
     }
 
@@ -60,6 +77,7 @@ class OnboardingRepository @Inject constructor(
     suspend fun resetOnboarding() {
         context.dataStore.edit { prefs ->
             prefs.remove(KEY_STUDENT_NAME)
+            prefs.remove(KEY_PERMIT_NUMBER)
             prefs.remove(KEY_COMPLETED)
         }
     }

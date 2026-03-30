@@ -1,6 +1,7 @@
 package com.codrivelog.app.ui.dashboard
 
 import app.cash.turbine.test
+import com.codrivelog.app.data.fake.FakeSupervisorDao
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,8 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import com.codrivelog.app.data.model.DriveSession
 import com.codrivelog.app.data.repository.DriveSessionRepository
+import com.codrivelog.app.data.repository.SupervisorRepository
+import com.codrivelog.app.onboarding.OnboardingRepository
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -24,6 +27,8 @@ class DashboardViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private val repository = mockk<DriveSessionRepository>()
+    private val onboardingRepository = mockk<OnboardingRepository>()
+    private val supervisorRepository = SupervisorRepository(FakeSupervisorDao())
 
     @BeforeEach
     fun setUp() {
@@ -54,8 +59,10 @@ class DashboardViewModelTest {
                 session(totalMinutes = 90, nightMinutes = 30),
             )
         )
+        every { onboardingRepository.studentName } returns flowOf("")
+        every { onboardingRepository.permitNumber } returns flowOf("")
 
-        val viewModel = DashboardViewModel(repository)
+        val viewModel = DashboardViewModel(repository, supervisorRepository, onboardingRepository)
 
         viewModel.uiState.test {
             val state = awaitItem()
@@ -68,8 +75,10 @@ class DashboardViewModelTest {
     @Test
     fun `uiState is zeroed when no sessions exist`() = runTest {
         every { repository.getAll() } returns flowOf(emptyList())
+        every { onboardingRepository.studentName } returns flowOf("")
+        every { onboardingRepository.permitNumber } returns flowOf("")
 
-        val viewModel = DashboardViewModel(repository)
+        val viewModel = DashboardViewModel(repository, supervisorRepository, onboardingRepository)
 
         viewModel.uiState.test {
             val state = awaitItem()

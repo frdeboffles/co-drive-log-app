@@ -39,7 +39,13 @@ class FusedLocationProvider @Inject constructor(
         if (!hasLocationPermission()) return null
 
         val current = getCurrentLocation()
-        if (current != null) return LatLng(current.latitude, current.longitude)
+        if (current != null) {
+            return LatLng(
+                latitude = current.latitude,
+                longitude = current.longitude,
+                accuracyMeters = current.accuracy,
+            )
+        }
 
         val bestCached = PROVIDERS
             .mapNotNull { provider ->
@@ -48,7 +54,13 @@ class FusedLocationProvider @Inject constructor(
             }
             .maxByOrNull { it.time }   // freshest fix wins
 
-        return bestCached?.let { LatLng(it.latitude, it.longitude) }
+        return bestCached?.let {
+            LatLng(
+                latitude = it.latitude,
+                longitude = it.longitude,
+                accuracyMeters = it.accuracy,
+            )
+        }
     }
 
     private suspend fun getCurrentLocation(): Location? {

@@ -28,4 +28,5 @@ interface LocationProvider {
 data class LatLng(
     val latitude: Double,
     val longitude: Double,
+    val accuracyMeters: Float = Float.POSITIVE_INFINITY,
 )

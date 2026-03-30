@@ -15,7 +15,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.codrivelog.app.R
+import com.codrivelog.app.data.model.DriveRoutePoint
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.repository.DriveRouteRepository
 import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.location.LatLng
 import com.codrivelog.app.location.LocationProvider
@@ -62,6 +64,7 @@ import javax.inject.Inject
 class DriveTimerService : Service() {
 
     @Inject lateinit var sessionRepository: DriveSessionRepository
+    @Inject lateinit var routeRepository:   DriveRouteRepository
     @Inject lateinit var timerRepository:   DriveTimerRepository
     @Inject lateinit var locationProvider:  LocationProvider
 
@@ -79,6 +82,7 @@ class DriveTimerService : Service() {
     private var lastLocation:     LatLng?        = null
     private var isCurrentlyNight: Boolean        = false
     private var manualNightOverride: Boolean     = false
+    private var routePointsBuffer: MutableList<DriveRoutePointDraft> = mutableListOf()
 
     // ---- Service lifecycle ----
 
@@ -122,6 +126,15 @@ class DriveTimerService : Service() {
         lastLocation       = null
         isCurrentlyNight   = false
         manualNightOverride = false
+        routePointsBuffer = mutableListOf()
+
+        serviceScope.launch {
+            val fix = locationProvider.getLastLocation()
+            if (fix != null) {
+                lastLocation = fix
+                maybeRecordRoutePoint(fix, LocalDateTime.now(), force = true)
+            }
+        }
 
         startTickLoop()
         startLocationLoop()
@@ -167,7 +180,25 @@ class DriveTimerService : Service() {
                 comments           = comments,
                 isManualEntry      = false,
             )
-            sessionRepository.insert(session)
+            val sessionId = sessionRepository.insert(session)
+
+            val finalFix = locationProvider.getLastLocation()
+            if (finalFix != null) {
+                maybeRecordRoutePoint(finalFix, end, force = true)
+            }
+
+            routePointsBuffer.forEach { draft ->
+                routeRepository.insert(
+                    DriveRoutePoint(
+                        sessionId = sessionId,
+                        timestamp = toUtc(draft.timestamp),
+                        latitude = draft.latitude,
+                        longitude = draft.longitude,
+                        accuracyMeters = draft.accuracyMeters,
+                    )
+                )
+            }
+            routePointsBuffer.clear()
             timerRepository.update(TimerState.Idle)
             stopSelf()
         }
@@ -222,6 +253,7 @@ class DriveTimerService : Service() {
                 val fix = locationProvider.getLastLocation()
                 if (fix != null) {
                     lastLocation = fix
+                    maybeRecordRoutePoint(fix, LocalDateTime.now(), force = false)
                     val nowUtc = LocalDateTime.now(ZoneOffset.UTC)
                     val times = SunCalculator.calculate(fix.latitude, fix.longitude, nowUtc.toLocalDate())
 
@@ -250,6 +282,37 @@ class DriveTimerService : Service() {
             .atZone(ZoneId.systemDefault())
             .withZoneSameInstant(ZoneOffset.UTC)
             .toLocalDateTime()
+
+    private fun maybeRecordRoutePoint(fix: LatLng, now: LocalDateTime, force: Boolean) {
+        val recentAccepted = routePointsBuffer.lastOrNull()
+        val withinStrictAccuracy = fix.accuracyMeters <= ROUTE_MAX_ACCURACY_METERS
+        val withinFallbackAccuracy = fix.accuracyMeters <= ROUTE_FALLBACK_MAX_ACCURACY_METERS
+        val minutesSinceLast = recentAccepted?.let { Duration.between(it.timestamp, now).toMinutes() } ?: Long.MAX_VALUE
+        val acceptForFallback = withinFallbackAccuracy && minutesSinceLast >= ROUTE_FALLBACK_STALE_MINUTES
+
+        if (!force && !(withinStrictAccuracy || acceptForFallback)) return
+
+        if (!force && recentAccepted != null) {
+            val distanceMeters = distanceMeters(
+                recentAccepted.latitude,
+                recentAccepted.longitude,
+                fix.latitude,
+                fix.longitude,
+            )
+            if (distanceMeters < ROUTE_DEDUPE_DISTANCE_METERS && minutesSinceLast < ROUTE_DEDUPE_MIN_INTERVAL_MINUTES) {
+                return
+            }
+        }
+
+        routePointsBuffer.add(
+            DriveRoutePointDraft(
+                timestamp = now,
+                latitude = fix.latitude,
+                longitude = fix.longitude,
+                accuracyMeters = fix.accuracyMeters,
+            )
+        )
+    }
 
     // ---- Notification ----
 
@@ -317,7 +380,31 @@ class DriveTimerService : Service() {
 
         /** How often the GPS cache is polled to update day/night status. */
         internal const val LOCATION_POLL_INTERVAL_MS = 60_000L
+
+        internal const val ROUTE_MAX_ACCURACY_METERS = 80f
+        internal const val ROUTE_FALLBACK_MAX_ACCURACY_METERS = 120f
+        internal const val ROUTE_FALLBACK_STALE_MINUTES = 3L
+        internal const val ROUTE_DEDUPE_DISTANCE_METERS = 25.0
+        internal const val ROUTE_DEDUPE_MIN_INTERVAL_MINUTES = 2L
     }
+}
+
+private data class DriveRoutePointDraft(
+    val timestamp: LocalDateTime,
+    val latitude: Double,
+    val longitude: Double,
+    val accuracyMeters: Float,
+)
+
+private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val r = 6_371_000.0
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+    val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+        kotlin.math.cos(Math.toRadians(lat1)) * kotlin.math.cos(Math.toRadians(lat2)) *
+        kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+    val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
+    return r * c
 }
 
 internal fun isNightUtc(nowUtc: LocalDateTime, sunTimes: SunCalculator.SunTimes): Boolean {

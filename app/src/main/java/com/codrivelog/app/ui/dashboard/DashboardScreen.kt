@@ -16,6 +16,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.codrivelog.app.R
 import com.codrivelog.app.ui.theme.CoDriveLogTheme
+import com.codrivelog.app.ui.timer.DriveTimerWidget
 
 /**
  * Main dashboard screen showing progress toward Colorado DR 2324 driving-hour
@@ -74,6 +75,7 @@ fun DashboardScreen(
                 current = uiState.nightHours,
                 goal = DashboardViewModel.GOAL_NIGHT_HOURS,
             )
+            DriveTimerWidget()
         }
     }
 }

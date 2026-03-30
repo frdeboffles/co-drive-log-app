@@ -12,8 +12,22 @@
     <string name="label_night_hours">Night Hours</string>
     <string name="progress_fraction">%1$.1f / %2$.0f hrs</string>
 
+    <!-- Drive timer UI -->
+    <string name="button_start_drive">Start Drive</string>
+    <string name="button_stop_drive">Stop Drive</string>
+    <string name="label_elapsed">Elapsed</string>
+    <string name="label_night_time">Night time</string>
+    <string name="label_day_indicator">Day</string>
+    <string name="label_night_indicator">Night</string>
+    <string name="label_no_gps">No GPS fix</string>
+    <string name="timer_elapsed_format">%s elapsed · %s night</string>
+
     <!-- Foreground service notification -->
     <string name="notification_channel_name">Drive Timer</string>
     <string name="notification_title">Drive in progress</string>
     <string name="notification_text">Tap to open CO Drive Log</string>
+    <string name="notification_text_idle">Tap to open CO Drive Log</string>
+    <string name="notification_text_running">%s elapsed</string>
+    <string name="notification_text_saving">Saving session…</string>
+    <string name="notification_action_stop">Stop</string>
 </resources>

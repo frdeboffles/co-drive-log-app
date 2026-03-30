@@ -51,11 +51,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.codrivelog.app.R
 import com.codrivelog.app.data.model.Supervisor
+import com.codrivelog.app.ui.toDatePickerUtcMillis
+import com.codrivelog.app.ui.toLocalDateFromDatePickerUtc
 import com.codrivelog.app.ui.theme.CoDriveLogTheme
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -306,19 +306,14 @@ fun ManualEntryForm(
     // ---- Date picker dialog ----
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = selectedDate
-                .atStartOfDay(ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli()
+            initialSelectedDateMillis = selectedDate.toDatePickerUtcMillis()
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton    = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = Instant.ofEpochMilli(millis)
-                            .atZone(ZoneId.systemDefault())
-                            .toLocalDate()
+                        selectedDate = millis.toLocalDateFromDatePickerUtc()
                     }
                     showDatePicker = false
                 }) { Text("OK") }

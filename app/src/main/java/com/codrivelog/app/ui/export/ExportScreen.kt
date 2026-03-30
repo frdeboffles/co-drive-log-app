@@ -51,10 +51,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.codrivelog.app.R
 import com.codrivelog.app.data.model.Supervisor
+import com.codrivelog.app.ui.toDatePickerUtcMillis
+import com.codrivelog.app.ui.toLocalDateFromDatePickerUtc
 import com.codrivelog.app.ui.theme.CoDriveLogTheme
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -204,14 +204,14 @@ private fun PdfSignatureDialog(
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            initialSelectedDateMillis = date.toDatePickerUtcMillis(),
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        date = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        date = millis.toLocalDateFromDatePickerUtc()
                     }
                     showDatePicker = false
                 }) { Text("OK") }

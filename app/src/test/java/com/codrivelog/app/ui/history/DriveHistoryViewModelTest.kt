@@ -2,8 +2,10 @@ package com.codrivelog.app.ui.history
 
 import app.cash.turbine.test
 import com.codrivelog.app.data.fake.FakeDriveSessionDao
+import com.codrivelog.app.data.fake.FakeSupervisorDao
 import com.codrivelog.app.data.model.DriveSession
 import com.codrivelog.app.data.repository.DriveSessionRepository
+import com.codrivelog.app.data.repository.SupervisorRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -25,6 +27,7 @@ class DriveHistoryViewModelTest {
 
     private lateinit var dao:       FakeDriveSessionDao
     private lateinit var repo:      DriveSessionRepository
+    private lateinit var supervisorRepo: SupervisorRepository
     private lateinit var viewModel: DriveHistoryViewModel
 
     @BeforeEach
@@ -32,7 +35,8 @@ class DriveHistoryViewModelTest {
         Dispatchers.setMain(testDispatcher)
         dao       = FakeDriveSessionDao()
         repo      = DriveSessionRepository(dao)
-        viewModel = DriveHistoryViewModel(repo)
+        supervisorRepo = SupervisorRepository(FakeSupervisorDao())
+        viewModel = DriveHistoryViewModel(repo, supervisorRepo)
     }
 
     @AfterEach

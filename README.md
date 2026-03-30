@@ -27,8 +27,28 @@ exports a printable log matching the official **DR 2324** form.
 - Export driving log as PDF matching DR 2324 column layout
 - CSV export for spreadsheet backup
 - Multiple supervisor support (name + initials)
-- First-launch onboarding: student name + first supervisor
+- First-launch onboarding: student name + permit number + first supervisor
+- Dashboard edit for student profile (name + permit)
+- History edit/delete for each drive entry
 - Fully local — no cloud, no account, no analytics
+
+## Debug Mode Utilities
+
+The app uses standard Android build variants:
+
+- `debug` build: debug tools are enabled
+- `release` build: debug tools are hidden
+
+To run with debug tools:
+
+```bash
+./gradlew installDebug
+```
+
+In the **Drive History** screen, debug builds show:
+
+- `Seed 100 entries`: creates 100 random sessions and randomly chooses one of the saved supervisors per entry
+- `Clear all`: removes all stored drive sessions
 
 ## Stack
 

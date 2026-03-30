@@ -55,4 +55,8 @@ class FakeDriveSessionDao : DriveSessionDao {
     override suspend fun delete(session: DriveSession) {
         sessions.value = sessions.value.filterNot { it.id == session.id }
     }
+
+    override suspend fun deleteAll() {
+        sessions.value = emptyList()
+    }
 }

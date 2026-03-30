@@ -15,34 +15,25 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,16 +49,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.codrivelog.app.BuildConfig
 import com.codrivelog.app.R
 import com.codrivelog.app.data.model.DriveSession
 import com.codrivelog.app.ui.theme.CoDriveLogTheme
 import com.codrivelog.app.ui.timer.DriveTimerWidget
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -83,7 +70,6 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showProfileEditor by remember { mutableStateOf(false) }
-    var editingDrive by remember { mutableStateOf<DriveSession?>(null) }
 
     Scaffold(
         topBar = {
@@ -143,9 +129,6 @@ fun DashboardScreen(
             RecentDrivesCard(
                 drives = uiState.recentDrives,
                 onViewHistory = onViewHistory,
-                onEditDrive = { editingDrive = it },
-                onDeleteDrive = viewModel::deleteSession,
-                onSeedEntries = { if (BuildConfig.DEBUG) viewModel.seedRandomEntries(100) },
             )
         }
     }
@@ -158,25 +141,6 @@ fun DashboardScreen(
             onSave = { studentName, permitNumber ->
                 viewModel.updateStudentProfile(studentName, permitNumber)
                 showProfileEditor = false
-            },
-        )
-    }
-
-    editingDrive?.let { drive ->
-        EditDriveDialog(
-            drive = drive,
-            onDismiss = { editingDrive = null },
-            onSave = { date, start, end, name, initials, comments ->
-                viewModel.updateSession(
-                    session = drive,
-                    date = date,
-                    startTime = start,
-                    endTime = end,
-                    supervisorName = name,
-                    supervisorInitials = initials,
-                    comments = comments,
-                )
-                editingDrive = null
             },
         )
     }
@@ -233,9 +197,6 @@ fun CircularHoursCard(
 private fun RecentDrivesCard(
     drives: List<DriveSession>,
     onViewHistory: () -> Unit,
-    onEditDrive: (DriveSession) -> Unit,
-    onDeleteDrive: (DriveSession) -> Unit,
-    onSeedEntries: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -262,17 +223,6 @@ private fun RecentDrivesCard(
                 }
             }
 
-            if (BuildConfig.DEBUG) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    OutlinedButton(onClick = onSeedEntries) {
-                        Text("Seed 100 entries")
-                    }
-                }
-            }
-
             if (drives.isEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -283,11 +233,7 @@ private fun RecentDrivesCard(
             } else {
                 Spacer(Modifier.height(4.dp))
                 drives.forEach { drive ->
-                    RecentDriveRow(
-                        drive = drive,
-                        onEdit = { onEditDrive(drive) },
-                        onDelete = { onDeleteDrive(drive) },
-                    )
+                    RecentDriveRow(drive = drive)
                 }
             }
         }
@@ -295,14 +241,9 @@ private fun RecentDrivesCard(
 }
 
 private val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
 @Composable
-private fun RecentDriveRow(
-    drive: DriveSession,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-) {
+private fun RecentDriveRow(drive: DriveSession) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -315,7 +256,7 @@ private fun RecentDriveRow(
                 maxLines = 1,
             )
             Text(
-                text = "${drive.supervisorName}  ${drive.startTime.toLocalTime().format(timeFormatter)}",
+                text = drive.supervisorName,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -336,14 +277,6 @@ private fun RecentDriveRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
-            }
-            Row {
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit drive")
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete drive")
-                }
             }
         }
     }
@@ -389,192 +322,6 @@ private fun ProfileEditDialog(
                     TextButton(onClick = { onSave(editedName, editedPermit) }, enabled = canSave) {
                         Text("Save")
                     }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun EditDriveDialog(
-    drive: DriveSession,
-    onDismiss: () -> Unit,
-    onSave: (LocalDate, LocalTime, LocalTime, String, String, String) -> Unit,
-) {
-    var selectedDate by remember(drive.id) { mutableStateOf(drive.date) }
-    var startTime by remember(drive.id) { mutableStateOf(drive.startTime.toLocalTime()) }
-    var endTime by remember(drive.id) { mutableStateOf(drive.endTime.toLocalTime()) }
-    var supervisorName by remember(drive.id) { mutableStateOf(drive.supervisorName) }
-    var supervisorInitials by remember(drive.id) { mutableStateOf(drive.supervisorInitials) }
-    var comments by remember(drive.id) { mutableStateOf(drive.comments.orEmpty()) }
-
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showStartTimePicker by remember { mutableStateOf(false) }
-    var showEndTimePicker by remember { mutableStateOf(false) }
-
-    val canSave = supervisorName.isNotBlank() && supervisorInitials.isNotBlank()
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text("Edit drive", style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(
-                    value = selectedDate.format(dateFormatter),
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Date") },
-                    trailingIcon = {
-                        IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.CalendarToday, contentDescription = null)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = startTime.format(timeFormatter),
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Start Time") },
-                    trailingIcon = {
-                        IconButton(onClick = { showStartTimePicker = true }) {
-                            Icon(Icons.Default.Schedule, contentDescription = null)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = endTime.format(timeFormatter),
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("End Time") },
-                    trailingIcon = {
-                        IconButton(onClick = { showEndTimePicker = true }) {
-                            Icon(Icons.Default.Schedule, contentDescription = null)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = supervisorName,
-                    onValueChange = { supervisorName = it },
-                    label = { Text("Supervisor") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = supervisorInitials,
-                    onValueChange = { supervisorInitials = it.uppercase().take(4) },
-                    label = { Text("Initials") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = comments,
-                    onValueChange = { comments = it },
-                    label = { Text("Comments") },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
-                    TextButton(
-                        onClick = {
-                            onSave(selectedDate, startTime, endTime, supervisorName, supervisorInitials, comments)
-                        },
-                        enabled = canSave,
-                    ) {
-                        Text("Save")
-                    }
-                }
-            }
-        }
-    }
-
-    if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = selectedDate
-                .atStartOfDay(ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli(),
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = Instant.ofEpochMilli(millis)
-                            .atZone(ZoneId.systemDefault())
-                            .toLocalDate()
-                    }
-                    showDatePicker = false
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-            },
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
-
-    if (showStartTimePicker) {
-        val state = rememberTimePickerState(
-            initialHour = startTime.hour,
-            initialMinute = startTime.minute,
-            is24Hour = false,
-        )
-        TimePickerDialog(
-            onDismiss = { showStartTimePicker = false },
-            onConfirm = {
-                startTime = LocalTime.of(state.hour, state.minute)
-                showStartTimePicker = false
-            },
-        ) { TimePicker(state = state) }
-    }
-
-    if (showEndTimePicker) {
-        val state = rememberTimePickerState(
-            initialHour = endTime.hour,
-            initialMinute = endTime.minute,
-            is24Hour = false,
-        )
-        TimePickerDialog(
-            onDismiss = { showEndTimePicker = false },
-            onConfirm = {
-                endTime = LocalTime.of(state.hour, state.minute)
-                showEndTimePicker = false
-            },
-        ) { TimePicker(state = state) }
-    }
-}
-
-@Composable
-private fun TimePickerDialog(
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card {
-            Column(modifier = Modifier.padding(24.dp)) {
-                content()
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
-                    TextButton(onClick = onConfirm) { Text("OK") }
                 }
             }
         }
@@ -667,9 +414,6 @@ private fun DashboardScreenPreviewProgress() {
             RecentDrivesCard(
                 drives = sampleDrives,
                 onViewHistory = {},
-                onEditDrive = {},
-                onDeleteDrive = {},
-                onSeedEntries = {},
             )
         }
     }

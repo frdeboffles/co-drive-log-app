@@ -14,9 +14,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.codrivelog.app.data.fake.FakeDriveSessionRepository
-import com.codrivelog.app.data.fake.FakeSupervisorDao
 import com.codrivelog.app.data.model.DriveSession
-import com.codrivelog.app.data.repository.SupervisorRepository
 import com.codrivelog.app.onboarding.OnboardingRepository
 import com.codrivelog.app.ui.dashboard.CircularHoursCard
 import com.codrivelog.app.ui.dashboard.DashboardScreen
@@ -177,7 +175,6 @@ class DashboardScreenTest {
         initialState: DashboardUiState,
     ): DashboardViewModel = DashboardViewModel(
         repository = FakeDriveSessionRepository(initialSessions = initialState.recentDrives),
-        supervisorRepository = SupervisorRepository(FakeSupervisorDao()),
         onboardingRepository = mockk<OnboardingRepository> {
             every { studentName } returns flowOf("")
             every { permitNumber } returns flowOf("")

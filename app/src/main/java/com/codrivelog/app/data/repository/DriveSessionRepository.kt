@@ -65,4 +65,7 @@ class DriveSessionRepository @Inject constructor(
      * @param session The session to delete.
      */
     suspend fun delete(session: DriveSession) = dao.delete(session)
+
+    /** Permanently delete all drive sessions. */
+    suspend fun deleteAll() = dao.deleteAll()
 }

@@ -77,4 +77,8 @@ interface DriveSessionDao {
      */
     @Delete
     suspend fun delete(session: DriveSession)
+
+    /** Permanently delete all session records. */
+    @Query("DELETE FROM drive_sessions")
+    suspend fun deleteAll()
 }

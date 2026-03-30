@@ -90,10 +90,10 @@ class ManualEntryViewModel @Inject constructor(
 
         val totalMinutes = Duration.between(startDt, endDt).toMinutes().toInt()
         val nightMinutes = NightMinutesCalculator.computeNightMinutesForSession(
-            start = startDt,
-            end   = endDt,
-            lat   = defaultLat,
-            lng   = defaultLng,
+            start        = startDt,
+            end          = endDt,
+            latitudeDeg  = defaultLat,
+            longitudeDeg = defaultLng,
         )
 
         _saveState.value = SaveState.Saving

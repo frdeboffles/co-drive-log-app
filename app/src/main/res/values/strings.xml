@@ -28,6 +28,8 @@
     <string name="label_no_supervisor">No supervisor selected</string>
     <string name="label_select_supervisor">Select Supervisor</string>
     <string name="label_elapsed_time">Elapsed Time</string>
+    <string name="label_manual_night_toggle">Night driving (manual)</string>
+    <string name="label_manual_night_toggle_hint">GPS unavailable — toggle if driving at night</string>
 
     <!-- Drive history screen -->
     <string name="screen_drive_history">Drive History</string>

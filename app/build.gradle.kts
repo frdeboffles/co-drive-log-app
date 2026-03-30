@@ -124,6 +124,9 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
+    // DataStore
+    implementation(libs.datastore.preferences)
+
     // ---- Unit Tests ----
     testImplementation(libs.junit5.api)
     testImplementation(libs.junit5.params)

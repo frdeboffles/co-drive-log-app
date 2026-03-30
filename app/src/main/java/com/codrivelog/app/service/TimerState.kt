@@ -19,12 +19,14 @@ sealed interface TimerState {
     /**
      * A drive session is actively in progress.
      *
-     * @property startTime          When the session was started.
-     * @property elapsedSeconds     Total seconds elapsed since [startTime].
-     * @property nightSeconds       Seconds driven in night conditions so far.
-     * @property currentlyNight     Whether the vehicle is currently in night conditions.
-     * @property latitude           Last known latitude, or `null` if no fix yet.
-     * @property longitude          Last known longitude, or `null` if no fix yet.
+     * @property startTime            When the session was started.
+     * @property elapsedSeconds       Total seconds elapsed since [startTime].
+     * @property nightSeconds         Seconds driven in night conditions so far.
+     * @property currentlyNight       Whether the vehicle is currently in night conditions.
+     * @property latitude             Last known latitude, or `null` if no fix yet.
+     * @property longitude            Last known longitude, or `null` if no fix yet.
+     * @property manualNightOverride  When `true` the user has manually forced night mode
+     *                                 (only relevant when [latitude] is `null`).
      */
     data class Running(
         val startTime: LocalDateTime,
@@ -33,6 +35,7 @@ sealed interface TimerState {
         val currentlyNight: Boolean,
         val latitude: Double?,
         val longitude: Double?,
+        val manualNightOverride: Boolean = false,
     ) : TimerState
 
     /**

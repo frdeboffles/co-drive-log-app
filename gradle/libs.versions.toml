@@ -19,6 +19,9 @@ hiltNavigationCompose = "1.2.0"
 # Room
 room = "2.6.1"
 
+# DataStore
+datastore = "1.1.1"
+
 # Navigation
 navigationCompose = "2.8.4"
 
@@ -68,6 +71,9 @@ room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+
+# DataStore
+datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 
 # Testing
 junit5-api = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit5" }

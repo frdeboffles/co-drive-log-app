@@ -71,15 +71,26 @@ class DriveTimerViewModel @Inject constructor(
         context.startService(intent)
     }
 
+    /**
+     * Toggles manual night override when GPS is unavailable.
+     * Delegates to [DriveTimerRepository.setManualNightOverride]; the service
+     * picks up the new value on its next tick.
+     */
+    fun setManualNightOverride(isNight: Boolean) {
+        timerRepository.setManualNightOverride(isNight)
+    }
+
     // ---- Mapping ----
 
     private fun TimerState.toUiState(): DriveTimerUiState = when (this) {
         TimerState.Idle, TimerState.Saving -> DriveTimerUiState.Idle
         is TimerState.Running -> DriveTimerUiState.Active(
-            elapsedFormatted = ElapsedTimeFormatter.formatHms(elapsedSeconds),
-            nightFormatted   = ElapsedTimeFormatter.formatHm(nightSeconds),
-            currentlyNight   = currentlyNight,
-            hasGpsFix        = latitude != null,
+            elapsedFormatted       = ElapsedTimeFormatter.formatHms(elapsedSeconds),
+            nightFormatted         = ElapsedTimeFormatter.formatHm(nightSeconds),
+            currentlyNight         = currentlyNight,
+            hasGpsFix              = latitude != null,
+            manualNightOverride    = manualNightOverride,
+            manualOverrideAvailable = latitude == null,
         )
     }
 }
@@ -95,15 +106,19 @@ sealed interface DriveTimerUiState {
     /**
      * A session is in progress; show elapsed time and a "Stop Drive" button.
      *
-     * @property elapsedFormatted  Total elapsed time as `H:MM:SS`.
-     * @property nightFormatted    Night time as `H:MM`.
-     * @property currentlyNight    Whether the current moment is classified as night.
-     * @property hasGpsFix         Whether a GPS fix is available.
+     * @property elapsedFormatted        Total elapsed time as `H:MM:SS`.
+     * @property nightFormatted          Night time as `H:MM`.
+     * @property currentlyNight          Whether the current moment is classified as night.
+     * @property hasGpsFix               Whether a GPS fix is available.
+     * @property manualNightOverride     Current value of the manual override toggle.
+     * @property manualOverrideAvailable `true` when the toggle should be shown (no GPS fix).
      */
     data class Active(
         val elapsedFormatted: String,
         val nightFormatted:   String,
         val currentlyNight:   Boolean,
         val hasGpsFix:        Boolean,
+        val manualNightOverride:     Boolean = false,
+        val manualOverrideAvailable: Boolean = false,
     ) : DriveTimerUiState
 }

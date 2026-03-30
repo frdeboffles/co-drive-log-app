@@ -3,6 +3,7 @@ package com.codrivelog.app.service
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,5 +33,18 @@ class DriveTimerRepository @Inject constructor() {
     /** Updates the published timer state.  Called exclusively by [DriveTimerService]. */
     internal fun update(state: TimerState) {
         _timerState.value = state
+    }
+
+    /**
+     * Toggles the manual night override.  Only meaningful when a session is running
+     * and no GPS fix is available ([TimerState.Running.latitude] is `null`).
+     *
+     * The service observes [timerState] and applies the override on its next tick.
+     */
+    fun setManualNightOverride(isNight: Boolean) {
+        _timerState.update { current ->
+            if (current is TimerState.Running) current.copy(manualNightOverride = isNight)
+            else current
+        }
     }
 }

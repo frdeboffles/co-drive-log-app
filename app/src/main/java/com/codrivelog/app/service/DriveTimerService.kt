@@ -71,6 +71,7 @@ class DriveTimerService : Service() {
     private var nightSeconds:     Long           = 0L
     private var lastLocation:     LatLng?        = null
     private var isCurrentlyNight: Boolean        = false
+    private var manualNightOverride: Boolean     = false
 
     // ---- Service lifecycle ----
 
@@ -107,6 +108,7 @@ class DriveTimerService : Service() {
         nightSeconds       = 0L
         lastLocation       = null
         isCurrentlyNight   = false
+        manualNightOverride = false
 
         startTickLoop()
         startLocationLoop()
@@ -127,7 +129,9 @@ class DriveTimerService : Service() {
                 .coerceAtLeast(0)
 
             // Re-compute night minutes from the full interval + location history.
-            // lastLocation may be null if GPS was unavailable; fall back to 0 night.
+            // If GPS was available, use the precise NOAA calculation.
+            // If GPS was never available, fall back to the manually-accumulated nightSeconds
+            // (which respects any manual night override the user toggled during the drive).
             val computedNightMinutes = lastLocation?.let { loc ->
                 NightMinutesCalculator.computeNightMinutesForSession(
                     start         = start,
@@ -163,14 +167,27 @@ class DriveTimerService : Service() {
                 val elapsed = Duration.between(start, LocalDateTime.now()).seconds
                     .coerceAtLeast(0L)
 
+                // Read any manual override the user may have toggled via the UI.
+                val currentState = timerRepository.timerState.value
+                if (currentState is TimerState.Running) {
+                    manualNightOverride = currentState.manualNightOverride
+                }
+
+                // When there is no GPS fix, apply the manual override; otherwise use NOAA calc.
+                val effectivelyNight = if (lastLocation == null) manualNightOverride else isCurrentlyNight
+
+                // Accumulate night seconds each tick (1 s granularity).
+                if (effectivelyNight) nightSeconds += TICK_INTERVAL_MS / 1_000L
+
                 timerRepository.update(
                     TimerState.Running(
-                        startTime      = start,
-                        elapsedSeconds = elapsed,
-                        nightSeconds   = nightSeconds,
-                        currentlyNight = isCurrentlyNight,
-                        latitude       = lastLocation?.latitude,
-                        longitude      = lastLocation?.longitude,
+                        startTime           = start,
+                        elapsedSeconds      = elapsed,
+                        nightSeconds        = nightSeconds,
+                        currentlyNight      = effectivelyNight,
+                        latitude            = lastLocation?.latitude,
+                        longitude           = lastLocation?.longitude,
+                        manualNightOverride = manualNightOverride,
                     )
                 )
 

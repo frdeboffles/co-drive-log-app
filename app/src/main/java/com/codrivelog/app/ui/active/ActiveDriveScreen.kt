@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -94,6 +95,7 @@ fun ActiveDriveScreen(
             supervisors     = supervisors.supervisors,
             onStart         = { name, initials -> timerVm.startDrive(name, initials) },
             onStop          = timerVm::stopDrive,
+            onNightOverride = timerVm::setManualNightOverride,
         )
     }
 }
@@ -101,11 +103,12 @@ fun ActiveDriveScreen(
 /** Stateless content — easy to test and preview. */
 @Composable
 fun ActiveDriveContent(
-    uiState:     DriveTimerUiState,
-    supervisors: List<Supervisor>,
-    onStart:     (name: String, initials: String) -> Unit,
-    onStop:      () -> Unit,
-    modifier:    Modifier = Modifier,
+    uiState:         DriveTimerUiState,
+    supervisors:     List<Supervisor>,
+    onStart:         (name: String, initials: String) -> Unit,
+    onStop:          () -> Unit,
+    onNightOverride: (Boolean) -> Unit = {},
+    modifier:        Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
@@ -121,8 +124,9 @@ fun ActiveDriveContent(
                 onStart     = onStart,
             )
             is DriveTimerUiState.Active -> ActiveDisplay(
-                state  = uiState,
-                onStop = onStop,
+                state           = uiState,
+                onStop          = onStop,
+                onNightOverride = onNightOverride,
             )
         }
     }
@@ -241,11 +245,20 @@ private fun IdleControls(
 
 @Composable
 private fun ActiveDisplay(
-    state:  DriveTimerUiState.Active,
-    onStop: () -> Unit,
+    state:           DriveTimerUiState.Active,
+    onStop:          () -> Unit,
+    onNightOverride: (Boolean) -> Unit,
 ) {
     // Large day/night badge
     DayNightBadge(isNight = state.currentlyNight, hasGpsFix = state.hasGpsFix)
+
+    // Manual night override toggle — only shown when GPS is unavailable
+    if (state.manualOverrideAvailable) {
+        ManualNightToggle(
+            isNight  = state.manualNightOverride,
+            onChange = onNightOverride,
+        )
+    }
 
     // Giant timer
     Text(
@@ -307,6 +320,44 @@ private fun ActiveDisplay(
             text  = stringResource(R.string.button_stop_drive),
             style = MaterialTheme.typography.titleMedium,
         )
+    }
+}
+
+// ---- Manual night toggle (shown only when GPS is unavailable) ----
+
+@Composable
+private fun ManualNightToggle(
+    isNight:  Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Card(
+        modifier  = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(2.dp),
+    ) {
+        Row(
+            modifier              = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text  = stringResource(R.string.label_manual_night_toggle),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text  = stringResource(R.string.label_manual_night_toggle_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Switch(
+                checked         = isNight,
+                onCheckedChange = onChange,
+            )
+        }
     }
 }
 
@@ -399,6 +450,26 @@ private fun PreviewActiveDriveRunningNight() {
                 nightFormatted   = "0:45",
                 currentlyNight   = true,
                 hasGpsFix        = true,
+            ),
+            supervisors = emptyList(),
+            onStart     = { _, _ -> },
+            onStop      = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "ActiveDrive – Running / No GPS (manual night)")
+@Composable
+private fun PreviewActiveDriveNoGps() {
+    CoDriveLogTheme {
+        ActiveDriveContent(
+            uiState = DriveTimerUiState.Active(
+                elapsedFormatted        = "0:30:00",
+                nightFormatted          = "0:30",
+                currentlyNight          = true,
+                hasGpsFix               = false,
+                manualNightOverride     = true,
+                manualOverrideAvailable = true,
             ),
             supervisors = emptyList(),
             onStart     = { _, _ -> },

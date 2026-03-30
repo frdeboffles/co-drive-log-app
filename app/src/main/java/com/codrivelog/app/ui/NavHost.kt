@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.codrivelog.app.onboarding.OnboardingScreen
 import com.codrivelog.app.ui.active.ActiveDriveScreen
 import com.codrivelog.app.ui.dashboard.DashboardScreen
 import com.codrivelog.app.ui.entry.ManualEntryScreen
@@ -13,6 +14,7 @@ import com.codrivelog.app.ui.supervisor.SupervisorManagementScreen
 
 /** Top-level navigation destinations. */
 sealed class Screen(val route: String) {
+    data object Onboarding  : Screen("onboarding")
     data object Dashboard   : Screen("dashboard")
     data object ActiveDrive : Screen("active_drive")
     data object Entry       : Screen("entry")
@@ -24,27 +26,41 @@ sealed class Screen(val route: String) {
 /**
  * Root navigation host wiring all top-level screens together.
  *
- * Start destination is [Screen.Dashboard]. All back-navigation uses
- * [androidx.navigation.NavController.popBackStack] so the back-stack is
- * naturally managed by the NavController.
+ * If [showOnboarding] is `true` the graph starts at [Screen.Onboarding];
+ * otherwise it starts at [Screen.Dashboard].  The onboarding screen pops
+ * itself and navigates to Dashboard once complete.
  *
  * Export callbacks are provided by [MainActivity] so that file-saving and
  * intent-launching happen in an Activity context, keeping this composable
  * fully testable without a real Android runtime.
  *
- * @param onExportPdf Invoked when the user confirms PDF export.
- * @param onExportCsv Invoked when the user confirms CSV export.
+ * @param showOnboarding `true` on first launch (DataStore flag not yet set).
+ * @param onExportPdf    Invoked when the user confirms PDF export.
+ * @param onExportCsv    Invoked when the user confirms CSV export.
  */
 @Composable
 fun CoDriveLogNavHost(
-    onExportPdf: () -> Unit = {},
-    onExportCsv: () -> Unit = {},
+    showOnboarding: Boolean = false,
+    onExportPdf:    () -> Unit = {},
+    onExportCsv:    () -> Unit = {},
 ) {
-    val navController = rememberNavController()
+    val navController    = rememberNavController()
+    val startDestination = if (showOnboarding) Screen.Onboarding.route
+                           else Screen.Dashboard.route
+
     NavHost(
         navController    = navController,
-        startDestination = Screen.Dashboard.route,
+        startDestination = startDestination,
     ) {
+        composable(Screen.Onboarding.route) {
+            OnboardingScreen(
+                onComplete = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Onboarding.route) { inclusive = true }
+                    }
+                },
+            )
+        }
         composable(Screen.Dashboard.route) {
             DashboardScreen(
                 onAddEntry    = { navController.navigate(Screen.Entry.route) },

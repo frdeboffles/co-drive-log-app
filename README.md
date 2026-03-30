@@ -1,19 +1,34 @@
-# CO Drive Log App
+# CO Drive Log
 
 Android app for logging teen supervised driving hours per Colorado DMV requirements (Form DR 2324).
 
 Sideloaded via developer mode — not published to the Play Store. Open-source under the MIT license.
 
+## Colorado Requirements
+
+Colorado Revised Statute 42-2-106 requires teen drivers to complete **50 hours** of supervised driving
+(at least **10 hours at night**) before obtaining a full license. This app tracks those hours and
+exports a printable log matching the official **DR 2324** form.
+
+| Requirement | Goal |
+|---|---|
+| Total supervised driving | 50 hours |
+| Night driving (after sunset) | 10 hours |
+| Supervisor | Licensed adult 21+ |
+
 ## Features
 
-- Start/stop drive timer with a foreground notification
-- Auto day/night detection via GPS + sunrise/sunset calculation
-- Manual retroactive drive entry
+- Start/stop drive timer with a foreground service notification
+- Auto day/night detection via GPS + NOAA sunrise/sunset calculation (SunCalculator)
+- Manual night override toggle when GPS is unavailable
+- Midnight-crossing drives handled correctly
+- Manual retroactive drive entry with automatic night-minute calculation
 - Dashboard showing progress toward 50-hour total / 10-hour night goals
-- Export driving log as PDF matching DR 2324 format
-- CSV export for backup
+- Export driving log as PDF matching DR 2324 column layout
+- CSV export for spreadsheet backup
 - Multiple supervisor support (name + initials)
-- Fully local — no cloud, no account required
+- First-launch onboarding: student name + first supervisor
+- Fully local — no cloud, no account, no analytics
 
 ## Stack
 
@@ -24,25 +39,94 @@ Sideloaded via developer mode — not published to the Play Store. Open-source u
 | Architecture | Single-module MVVM + Repository |
 | Database | Room (SQLite) |
 | DI | Hilt |
+| Prefs | Jetpack DataStore |
 | Build | Gradle with Kotlin DSL + Version Catalog |
 | Min SDK | 34 (Android 14) |
+| Test | JUnit 5 + Turbine + MockK + Kover |
+
+## Screenshots
+
+| Dashboard | Active Drive | History | Export |
+|---|---|---|---|
+| _(placeholder)_ | _(placeholder)_ | _(placeholder)_ | _(placeholder)_ |
 
 ## Building
 
 ```bash
+# Clone
+git clone https://github.com/youruser/ColoradoTeenDriverLog.git
+cd ColoradoTeenDriverLog
+
 # Debug APK
 ./gradlew assembleDebug
 
-# Unit tests
+# Unit tests + coverage
 ./gradlew testDebugUnitTest
-
-# Instrumented tests (connected device/emulator required)
-./gradlew connectedDebugAndroidTest
-
-# Coverage report
 ./gradlew koverHtmlReportDebug
+# Report: app/build/reports/kover/htmlDebug/index.html
+
+# Instrumented tests (connected device or emulator required)
+./gradlew connectedDebugAndroidTest
+```
+
+## Sideloading to an Android Device
+
+1. Enable **Developer Options** on the device (Settings → About Phone → tap Build Number 7 times).
+2. Enable **USB Debugging** and/or **Install via USB** in Developer Options.
+3. Connect the device via USB cable.
+4. Run:
+   ```bash
+   ./gradlew installDebug
+   # or manually:
+   adb install app/build/outputs/apk/debug/app-debug.apk
+   ```
+5. Open **CO Drive Log** from the app drawer.
+
+You can also transfer the APK file via USB/email and open it directly on the device
+(you will be prompted to allow installs from unknown sources once).
+
+## Project Structure
+
+```
+app/src/main/java/com/codrivelog/app/
+├── data/           Room DB, DAOs, models, repositories
+├── export/         CSV + PDF export logic
+├── location/       GPS location provider (Hilt)
+├── onboarding/     DataStore-backed onboarding repository + ViewModel
+├── service/        Foreground drive timer service + shared state
+├── ui/             Composable screens + ViewModels
+│   ├── active/     Active drive screen
+│   ├── dashboard/  Dashboard screen
+│   ├── entry/      Manual entry screen
+│   ├── export/     Export screen
+│   ├── history/    Drive history screen
+│   ├── supervisor/ Supervisor management screen
+│   └── theme/      Material 3 theme + color scheme
+└── util/           SunCalculator, NightMinutesCalculator, formatter
 ```
 
 ## License
 
-MIT
+```
+MIT License
+
+Copyright (c) 2025
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

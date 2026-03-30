@@ -7,32 +7,45 @@ package com.codrivelog.app.export
  * the exact names discovered via desktop field inspection.
  */
 object Dr2324FieldNames {
-    const val STUDENT_NAME = "student_name"
-    const val PERMIT_NUMBER = "permit_number"
+    const val STUDENT_NAME = "Students name"
+    const val PERMIT_NUMBER = "Permit number"
 
-    const val TOTALS_PAGE_DRIVING = "totals_page_driving"
-    const val TOTALS_PAGE_NIGHT = "totals_page_night"
+    const val TOTALS_PAGE_DRIVING = "Driving Time_14"
+    const val TOTALS_PAGE_NIGHT = "Minimum of 10 hours"
 
-    const val GRAND_TOTAL_DRIVING = "grand_total_driving"
-    const val GRAND_TOTAL_NIGHT = "grand_total_night"
+    const val GRAND_TOTAL_DRIVING = "Grand Total Driving Time"
+    const val GRAND_TOTAL_NIGHT = "Grand Total Night Driving Time"
 
-    const val SIGNATURE_NAME = "signature_name"
-    const val SIGNATURE_VALUE = "signature"
-    const val SIGNATURE_DATE = "signature_date"
+    const val SIGNATURE_NAME = "Name"
+    const val SIGNATURE_DATE = "Date_2"
 
-    fun rowDate(pageIndex: Int, rowIndex: Int): String = "page_${pageIndex + 1}_row_${rowIndex + 1}_date"
-    fun rowVerifierInitials(pageIndex: Int, rowIndex: Int): String =
-        "page_${pageIndex + 1}_row_${rowIndex + 1}_verifier_initials"
+    fun rowDate(pageIndex: Int, rowIndex: Int): String = when (rowIndex) {
+        0 -> "Date"
+        1 -> "Date_02"
+        else -> "Date_${rowIndex + 1}"
+    }
 
-    fun rowDrivingTime(pageIndex: Int, rowIndex: Int): String =
-        "page_${pageIndex + 1}_row_${rowIndex + 1}_driving_time"
+    fun rowVerifierInitials(pageIndex: Int, rowIndex: Int): String = when (rowIndex) {
+        0 -> "Verifiers Initials"
+        else -> "Verifiers Initials_${rowIndex + 1}"
+    }
 
-    fun rowNightDrivingTime(pageIndex: Int, rowIndex: Int): String =
-        "page_${pageIndex + 1}_row_${rowIndex + 1}_night_driving_time"
+    fun rowDrivingTime(pageIndex: Int, rowIndex: Int): String = when (rowIndex) {
+        0 -> "Driving Time"
+        else -> "Driving Time_${rowIndex + 1}"
+    }
 
-    fun rowComments(pageIndex: Int, rowIndex: Int): String =
-        "page_${pageIndex + 1}_row_${rowIndex + 1}_comments"
+    fun rowNightDrivingTime(pageIndex: Int, rowIndex: Int): String = when (rowIndex) {
+        0 -> "Night Driving"
+        1 -> "Night Driving_02"
+        else -> "Night Driving_${rowIndex + 1}"
+    }
 
-    fun pageDrivingTotal(pageIndex: Int): String = "page_${pageIndex + 1}_totals_driving"
-    fun pageNightTotal(pageIndex: Int): String = "page_${pageIndex + 1}_totals_night"
+    fun rowComments(pageIndex: Int, rowIndex: Int): String = when (rowIndex) {
+        0 -> "Comments"
+        else -> "Comments_${rowIndex + 1}"
+    }
+
+    fun pageDrivingTotal(pageIndex: Int): String = TOTALS_PAGE_DRIVING
+    fun pageNightTotal(pageIndex: Int): String = TOTALS_PAGE_NIGHT
 }

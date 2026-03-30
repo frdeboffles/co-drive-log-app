@@ -22,7 +22,7 @@
     <string name="label_day_indicator">Day</string>
     <string name="label_night_indicator">Night</string>
     <string name="label_no_gps">No GPS fix</string>
-    <string name="timer_elapsed_format">%s elapsed · %s night</string>
+    <string name="timer_elapsed_format">%1$s elapsed · %2$s night</string>
 
     <!-- Active drive screen -->
     <string name="screen_active_drive">Active Drive</string>

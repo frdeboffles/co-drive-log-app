@@ -27,9 +27,19 @@ sealed class Screen(val route: String) {
  * Start destination is [Screen.Dashboard]. All back-navigation uses
  * [androidx.navigation.NavController.popBackStack] so the back-stack is
  * naturally managed by the NavController.
+ *
+ * Export callbacks are provided by [MainActivity] so that file-saving and
+ * intent-launching happen in an Activity context, keeping this composable
+ * fully testable without a real Android runtime.
+ *
+ * @param onExportPdf Invoked when the user confirms PDF export.
+ * @param onExportCsv Invoked when the user confirms CSV export.
  */
 @Composable
-fun CoDriveLogNavHost() {
+fun CoDriveLogNavHost(
+    onExportPdf: () -> Unit = {},
+    onExportCsv: () -> Unit = {},
+) {
     val navController = rememberNavController()
     NavHost(
         navController    = navController,
@@ -67,8 +77,8 @@ fun CoDriveLogNavHost() {
         composable(Screen.Export.route) {
             ExportScreen(
                 onBack      = { navController.popBackStack() },
-                onExportPdf = { /* TODO Phase 6: PDF generation */ },
-                onExportCsv = { /* TODO Phase 6: CSV generation */ },
+                onExportPdf = onExportPdf,
+                onExportCsv = onExportCsv,
             )
         }
     }

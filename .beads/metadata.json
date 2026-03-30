@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "ColoradoTeenDriverLog",
+  "project_id": "6bfc29fd-83e1-43b7-ad02-7962af54dfee"
+}

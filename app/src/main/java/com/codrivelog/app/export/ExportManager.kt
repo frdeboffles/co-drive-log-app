@@ -45,18 +45,34 @@ class ExportManager @Inject constructor(
      * Export all sessions as a PDF and save it to Downloads.
      *
      * @param studentName Student name to embed in the PDF header.
-     * @return [Uri] of the saved file, or `null` on failure.
+     * @return [Uri] of the first saved file, or `null` on failure.
      */
     suspend fun exportPdf(studentName: String = ""): Uri? = withContext(Dispatchers.IO) {
         val rows = fetchRows()
         if (rows.isEmpty()) return@withContext null
 
-        val fileName = "CoDriveLog_${dateSuffix}.pdf"
         val mimeType = "application/pdf"
+        val sheets = PdfExporter.splitIntoSheets(rows)
+        val totalSheets = sheets.size
+        val uris = mutableListOf<Uri>()
 
-        saveToDownloads(fileName, mimeType) { stream ->
-            PdfExporter.write(rows, studentName, stream)
+        sheets.forEachIndexed { index, sheetRows ->
+            val fileName = if (totalSheets == 1) {
+                "CoDriveLog_${dateSuffix}.pdf"
+            } else {
+                "CoDriveLog_${dateSuffix}_part${(index + 1).toString().padStart(2, '0')}.pdf"
+            }
+
+            val uri = saveToDownloads(fileName, mimeType) { stream ->
+                PdfExporter.write(sheetRows, studentName, stream)
+            }
+
+            if (uri != null) {
+                uris += uri
+            }
         }
+
+        uris.firstOrNull()
     }
 
     /**

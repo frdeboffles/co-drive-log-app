@@ -13,3 +13,8 @@
 -keepclassmembers class com.codrivelog.app.** {
     public <init>(...);
 }
+
+# PDFBox Android optionally references JP2 classes that are not packaged.
+# Suppress R8 missing-class warnings for those optional codecs.
+-dontwarn com.gemalto.jp2.JP2Decoder
+-dontwarn com.gemalto.jp2.JP2Encoder

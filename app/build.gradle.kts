@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kover)
+    alias(libs.plugins.room)
 }
 
 android {
@@ -13,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "com.codrivelog.app"
-        minSdk = 26
+        minSdk = 34
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
@@ -24,6 +25,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            // For local USB sideloads, sign release builds with the debug keystore
+            // so the APK is installable via `adb install` without extra key setup.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -48,6 +52,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -62,6 +67,12 @@ android {
     tasks.withType<Test> {
         useJUnitPlatform()
     }
+}
+
+// Room schema export — writes JSON schema files alongside source so they
+// can be committed to version control and used for migration testing.
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 // Kover coverage configuration
@@ -89,6 +100,8 @@ kover {
 }
 
 dependencies {
+    implementation(project(":core"))
+
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -117,6 +130,12 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
+    // DataStore
+    implementation(libs.datastore.preferences)
+
+    // PDF template filling
+    implementation(libs.pdfbox.android)
+
     // ---- Unit Tests ----
     testImplementation(libs.junit5.api)
     testImplementation(libs.junit5.params)
@@ -129,10 +148,12 @@ dependencies {
     // ---- Instrumented Tests ----
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.mockk.android)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
 
     // Debug helpers
     debugImplementation(libs.androidx.ui.tooling)

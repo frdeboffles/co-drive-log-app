@@ -7,11 +7,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Repository acting as the single source of truth for [DriveSession] data.
+ * Repository providing the single source of truth for [DriveSession] data.
  *
- * Abstracts the Room DAO from the ViewModel layer and is injectable via Hilt.
+ * Wraps [DriveSessionDao] so ViewModels never depend directly on Room,
+ * making them straightforward to test with a [FakeDriveSessionDao].
  *
- * @param dao The Room DAO used to access the database.
+ * @param dao The Room DAO for drive-session persistence.
  */
 @Singleton
 class DriveSessionRepository @Inject constructor(
@@ -19,11 +20,11 @@ class DriveSessionRepository @Inject constructor(
 ) {
 
     /**
-     * Observe all drive sessions ordered by most-recent first.
+     * Observe all drive sessions ordered by date descending (most-recent first).
      *
-     * @return A cold [Flow] emitting the full list whenever the table changes.
+     * @return A cold [Flow] that re-emits the full list whenever the table changes.
      */
-    fun getAllSessions(): Flow<List<DriveSession>> = dao.getAllSessions()
+    fun getAll(): Flow<List<DriveSession>> = dao.getAll()
 
     /**
      * Retrieve a single session by its primary key.
@@ -31,7 +32,17 @@ class DriveSessionRepository @Inject constructor(
      * @param id The session primary key.
      * @return The matching [DriveSession], or `null` if not found.
      */
-    suspend fun getSession(id: Long): DriveSession? = dao.getSession(id)
+    suspend fun getById(id: Long): DriveSession? = dao.getById(id)
+
+    /**
+     * Returns the cumulative total driving minutes across all sessions.
+     */
+    suspend fun getTotalDrivingMinutes(): Int = dao.getTotalDrivingMinutes()
+
+    /**
+     * Returns the cumulative night driving minutes across all sessions.
+     */
+    suspend fun getTotalNightMinutes(): Int = dao.getTotalNightMinutes()
 
     /**
      * Persist a new drive session.
@@ -39,19 +50,22 @@ class DriveSessionRepository @Inject constructor(
      * @param session The session to save.
      * @return The row ID of the newly inserted record.
      */
-    suspend fun saveSession(session: DriveSession): Long = dao.insert(session)
+    suspend fun insert(session: DriveSession): Long = dao.insert(session)
 
     /**
-     * Update an existing drive session.
+     * Update an existing drive session matched by primary key.
      *
-     * @param session The updated session (matched by primary key).
+     * @param session The updated session.
      */
-    suspend fun updateSession(session: DriveSession) = dao.update(session)
+    suspend fun update(session: DriveSession) = dao.update(session)
 
     /**
      * Permanently delete a drive session.
      *
      * @param session The session to delete.
      */
-    suspend fun deleteSession(session: DriveSession) = dao.delete(session)
+    suspend fun delete(session: DriveSession) = dao.delete(session)
+
+    /** Permanently delete all drive sessions. */
+    suspend fun deleteAll() = dao.deleteAll()
 }

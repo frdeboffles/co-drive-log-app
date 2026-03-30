@@ -10,10 +10,79 @@
     <!-- Dashboard -->
     <string name="label_total_hours">Total Hours</string>
     <string name="label_night_hours">Night Hours</string>
-    <string name="progress_fraction">%.1f / %.0f hrs</string>
+    <string name="progress_fraction">%1$.1f / %2$.0f hrs</string>
+
+    <!-- Drive timer UI -->
+    <string name="button_start_drive">Start Drive</string>
+    <string name="button_stop_drive">Stop Drive</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_enter_manually">Enter manually...</string>
+    <string name="label_elapsed">Elapsed</string>
+    <string name="label_night_time">Night time</string>
+    <string name="label_day_indicator">Day</string>
+    <string name="label_night_indicator">Night</string>
+    <string name="label_no_gps">No GPS fix</string>
+    <string name="timer_elapsed_format">%1$s elapsed · %2$s night</string>
+
+    <!-- Active drive screen -->
+    <string name="screen_active_drive">Active Drive</string>
+    <string name="label_supervisor">Supervisor</string>
+    <string name="label_no_supervisor">No supervisor selected</string>
+    <string name="label_select_supervisor">Select Supervisor</string>
+    <string name="label_elapsed_time">Elapsed Time</string>
+    <string name="label_manual_night_toggle">Night driving (manual)</string>
+    <string name="label_manual_night_toggle_hint">GPS unavailable — toggle if driving at night</string>
+
+    <!-- Drive history screen -->
+    <string name="screen_drive_history">Drive History</string>
+    <string name="label_no_drives">No drives recorded yet</string>
+    <string name="label_manual_entry_badge">Manual</string>
+    <string name="cd_delete_drive">Delete drive</string>
+    <string name="action_view_route">View Route</string>
+    <string name="error_no_route_for_session">No route points available for this session.</string>
+
+    <!-- Manual entry screen -->
+    <string name="screen_manual_entry">Add Past Drive</string>
+    <string name="label_date">Date</string>
+    <string name="label_start_time">Start Time</string>
+    <string name="label_end_time">End Time</string>
+    <string name="label_comments">Comments (optional)</string>
+    <string name="label_initials">Initials</string>
+    <string name="button_save_drive">Save Drive</string>
+    <string name="error_end_before_start">End time must be after start time</string>
+    <string name="error_supervisor_required">Supervisor name is required</string>
+    <string name="error_initials_required">Initials are required</string>
+
+    <!-- Supervisor management screen -->
+    <string name="screen_supervisors">Supervisors</string>
+    <string name="label_no_supervisors">No supervisors added yet</string>
+    <string name="hint_supervisor_name">Full name</string>
+    <string name="hint_supervisor_initials">Initials (e.g. JD)</string>
+    <string name="button_add_supervisor">Add</string>
+    <string name="cd_delete_supervisor">Delete supervisor</string>
+
+    <!-- Export screen -->
+    <string name="screen_export">Export Log</string>
+    <string name="label_export_pdf">Export as PDF (DR 2324)</string>
+    <string name="label_export_csv">Export as CSV</string>
+    <string name="desc_export_pdf">Generates a printable Colorado DR 2324 formatted driving log.</string>
+    <string name="desc_export_csv">Exports all drive sessions as a spreadsheet-compatible CSV file.</string>
+    <string name="button_export_pdf">Export PDF</string>
+    <string name="dialog_pdf_signature_title">PDF Signature</string>
+    <string name="button_pick_date">Pick Date</string>
+    <string name="button_export">Export</string>
+    <string name="hint_signed_pdf_requires_supervisor">Add at least one supervisor to export a signed PDF.</string>
+    <string name="hint_record_drive_to_export">Record at least one drive to enable export.</string>
+    <string name="button_export_csv">Export CSV</string>
+    <string name="label_total_sessions">Total sessions</string>
+    <string name="label_total_hours_value">%1$.1f hrs total · %2$.1f hrs night</string>
 
     <!-- Foreground service notification -->
     <string name="notification_channel_name">Drive Timer</string>
     <string name="notification_title">Drive in progress</string>
     <string name="notification_text">Tap to open CO Drive Log</string>
+    <string name="notification_text_idle">Tap to open CO Drive Log</string>
+    <string name="notification_text_running">%s elapsed</string>
+    <string name="notification_text_saving">Saving session…</string>
+    <string name="notification_action_stop">Stop</string>
 </resources>

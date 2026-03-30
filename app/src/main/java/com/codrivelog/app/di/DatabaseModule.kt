@@ -3,6 +3,8 @@ package com.codrivelog.app.di
 import android.content.Context
 import androidx.room.Room
 import com.codrivelog.app.data.db.CoDriveLogDatabase
+import com.codrivelog.app.data.db.DatabaseMigrations
+import com.codrivelog.app.data.db.DriveRoutePointDao
 import com.codrivelog.app.data.db.DriveSessionDao
 import com.codrivelog.app.data.db.SupervisorDao
 import dagger.Module
@@ -32,7 +34,9 @@ object DatabaseModule {
             context,
             CoDriveLogDatabase::class.java,
             "co_drive_log.db",
-        ).build()
+        )
+            .addMigrations(DatabaseMigrations.MIGRATION_1_2)
+            .build()
 
     /**
      * Provides [DriveSessionDao] sourced from the singleton database.
@@ -51,4 +55,8 @@ object DatabaseModule {
     @Provides
     fun provideSupervisorDao(db: CoDriveLogDatabase): SupervisorDao =
         db.supervisorDao()
+
+    @Provides
+    fun provideDriveRoutePointDao(db: CoDriveLogDatabase): DriveRoutePointDao =
+        db.driveRoutePointDao()
 }

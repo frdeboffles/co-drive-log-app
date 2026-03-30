@@ -237,13 +237,15 @@ fun DriveSessionCard(
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 if (session.nightMinutes > 0) {
+                    val nightH = session.nightMinutes / 60
+                    val nightM = session.nightMinutes % 60
                     SuggestionChip(
                         onClick = {},
                         label = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.NightsStay, contentDescription = null, modifier = Modifier.size(12.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("${session.nightMinutes}m night", style = MaterialTheme.typography.labelSmall)
+                                Text("%d:%02d hrs night".format(nightH, nightM), style = MaterialTheme.typography.labelSmall)
                             }
                         },
                         colors = SuggestionChipDefaults.suggestionChipColors(

@@ -272,8 +272,10 @@ private fun RecentDriveRow(drive: DriveSession) {
                 fontWeight = FontWeight.Medium,
             )
             if (drive.nightMinutes > 0) {
+                val nightH = drive.nightMinutes / 60
+                val nightM = drive.nightMinutes % 60
                 Text(
-                    text = "%dm night".format(drive.nightMinutes),
+                    text = "%d:%02d hrs night".format(nightH, nightM),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )

@@ -1,5 +1,6 @@
 package com.codrivelog.app.service
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,8 +8,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import com.codrivelog.app.R
 import com.codrivelog.app.data.model.DriveSession
 import com.codrivelog.app.data.repository.DriveSessionRepository
@@ -80,7 +85,13 @@ class DriveTimerService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notification_text_idle)))
+        val notification = buildNotification(getString(R.string.notification_text_idle))
+        val fgsType = if (hasLocationPermission()) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        } else {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        }
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, fgsType)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -218,6 +229,17 @@ class DriveTimerService : Service() {
     }
 
     // ---- Helpers ----
+
+    /**
+     * Returns `true` when the user has granted at least coarse location permission,
+     * which is required to promote this service to [ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION]
+     * on Android 14+ (targetSdk 34+).
+     */
+    private fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
 
     /**
      * Determines whether [now] falls in night conditions given the computed [sunTimes].

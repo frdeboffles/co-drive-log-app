@@ -32,6 +32,10 @@ Thumbs.db
 
 # Kotlin
 *.kotlin_module
+.kotlin/
+
+# Local assets / screenshots
+pdf_screenshots/
 
 # Signing
 *.jks

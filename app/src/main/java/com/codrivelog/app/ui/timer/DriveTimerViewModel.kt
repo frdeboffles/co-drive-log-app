@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.codrivelog.app.data.model.Supervisor
+import com.codrivelog.app.data.repository.SupervisorRepository
 import com.codrivelog.app.service.DriveTimerRepository
 import com.codrivelog.app.service.DriveTimerService
 import com.codrivelog.app.service.TimerState
@@ -28,6 +30,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DriveTimerViewModel @Inject constructor(
     private val timerRepository: DriveTimerRepository,
+    supervisorRepository: SupervisorRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -38,6 +41,15 @@ class DriveTimerViewModel @Inject constructor(
             scope   = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = DriveTimerUiState.Idle,
+        )
+
+    /** Saved supervisors used by the start-drive form dropdown. */
+    val supervisors: StateFlow<List<Supervisor>> = supervisorRepository
+        .getAll()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
         )
 
     /**

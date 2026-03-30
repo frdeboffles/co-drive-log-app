@@ -5,10 +5,14 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
+import android.os.CancellationSignal
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.resume
 
 /**
  * Production [LocationProvider] backed by [LocationManager.getLastKnownLocation].
@@ -34,14 +38,40 @@ class FusedLocationProvider @Inject constructor(
     override suspend fun getLastLocation(): LatLng? {
         if (!hasLocationPermission()) return null
 
-        val best = PROVIDERS
+        val current = getCurrentLocation()
+        if (current != null) return LatLng(current.latitude, current.longitude)
+
+        val bestCached = PROVIDERS
             .mapNotNull { provider ->
                 @Suppress("MissingPermission")
                 locationManager.getLastKnownLocation(provider)
             }
             .maxByOrNull { it.time }   // freshest fix wins
 
-        return best?.let { LatLng(it.latitude, it.longitude) }
+        return bestCached?.let { LatLng(it.latitude, it.longitude) }
+    }
+
+    private suspend fun getCurrentLocation(): Location? {
+        for (provider in PROVIDERS) {
+            if (!locationManager.isProviderEnabled(provider)) continue
+            val fix = withTimeoutOrNull(CURRENT_LOCATION_TIMEOUT_MS) {
+                suspendCancellableCoroutine<Location?> { continuation ->
+                    val signal = CancellationSignal()
+                    continuation.invokeOnCancellation { signal.cancel() }
+
+                    @Suppress("MissingPermission")
+                    locationManager.getCurrentLocation(
+                        provider,
+                        signal,
+                        context.mainExecutor,
+                    ) { location ->
+                        if (continuation.isActive) continuation.resume(location)
+                    }
+                }
+            }
+            if (fix != null) return fix
+        }
+        return null
     }
 
     private fun hasLocationPermission(): Boolean =
@@ -59,5 +89,7 @@ class FusedLocationProvider @Inject constructor(
             LocationManager.NETWORK_PROVIDER,
             LocationManager.PASSIVE_PROVIDER,
         )
+
+        private const val CURRENT_LOCATION_TIMEOUT_MS = 8_000L
     }
 }

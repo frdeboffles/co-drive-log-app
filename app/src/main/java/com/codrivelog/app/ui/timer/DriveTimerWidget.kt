@@ -10,20 +10,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.codrivelog.app.R
+import com.codrivelog.app.data.model.Supervisor
 import com.codrivelog.app.ui.theme.CoDriveLogTheme
 
 /**
@@ -55,11 +63,13 @@ fun DriveTimerWidget(
     viewModel: DriveTimerViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val supervisors by viewModel.supervisors.collectAsStateWithLifecycle()
     DriveTimerWidgetContent(
-        uiState   = uiState,
-        onStart   = { name, initials -> viewModel.startDrive(name, initials) },
-        onStop    = viewModel::stopDrive,
-        modifier  = modifier,
+        uiState      = uiState,
+        supervisors  = supervisors,
+        onStart      = { name, initials -> viewModel.startDrive(name, initials) },
+        onStop       = viewModel::stopDrive,
+        modifier     = modifier,
     )
 }
 
@@ -68,9 +78,10 @@ fun DriveTimerWidget(
  */
 @Composable
 fun DriveTimerWidgetContent(
-    uiState:  DriveTimerUiState,
-    onStart:  (supervisorName: String, supervisorInitials: String) -> Unit,
-    onStop:   () -> Unit,
+    uiState: DriveTimerUiState,
+    supervisors: List<Supervisor>,
+    onStart: (supervisorName: String, supervisorInitials: String) -> Unit,
+    onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -82,7 +93,10 @@ fun DriveTimerWidgetContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             when (uiState) {
-                DriveTimerUiState.Idle -> IdleContent(onStart = onStart)
+                DriveTimerUiState.Idle -> IdleContent(
+                    supervisors = supervisors,
+                    onStart = onStart,
+                )
                 is DriveTimerUiState.Active -> ActiveContent(state = uiState, onStop = onStop)
             }
         }
@@ -93,11 +107,18 @@ fun DriveTimerWidgetContent(
 
 @Composable
 private fun IdleContent(
+    supervisors: List<Supervisor>,
     onStart: (supervisorName: String, supervisorInitials: String) -> Unit,
 ) {
     var showForm by remember { mutableStateOf(false) }
-    var supervisorName     by remember { mutableStateOf("") }
-    var supervisorInitials by remember { mutableStateOf("") }
+    var supervisorName by rememberSaveable { mutableStateOf("") }
+    var supervisorInitials by rememberSaveable { mutableStateOf("") }
+    var dropdownExpanded by remember { mutableStateOf(false) }
+    var manualEntry by rememberSaveable { mutableStateOf(supervisors.isEmpty()) }
+
+    LaunchedEffect(supervisors.isEmpty()) {
+        if (supervisors.isEmpty()) manualEntry = true
+    }
 
     if (!showForm) {
         Button(
@@ -108,33 +129,92 @@ private fun IdleContent(
         }
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            androidx.compose.material3.OutlinedTextField(
-                value         = supervisorName,
-                onValueChange = { supervisorName = it },
-                label         = { Text("Supervisor name") },
-                singleLine    = true,
-                modifier      = Modifier.fillMaxWidth(),
-            )
-            androidx.compose.material3.OutlinedTextField(
-                value         = supervisorInitials,
-                onValueChange = { supervisorInitials = it.uppercase().take(4) },
-                label         = { Text("Initials") },
-                singleLine    = true,
-                modifier      = Modifier.fillMaxWidth(),
-            )
+            if (supervisors.isNotEmpty()) {
+                OutlinedTextField(
+                    value = if (!manualEntry && supervisorName.isBlank()) {
+                        stringResource(R.string.label_select_supervisor)
+                    } else {
+                        supervisorName
+                    },
+                    onValueChange = {},
+                    label = { Text(stringResource(R.string.label_supervisor)) },
+                    readOnly = true,
+                    trailingIcon = {
+                        IconButton(onClick = { dropdownExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                DropdownMenu(
+                    expanded = dropdownExpanded,
+                    onDismissRequest = { dropdownExpanded = false },
+                ) {
+                    supervisors.forEach { supervisor ->
+                        DropdownMenuItem(
+                            text = { Text("${supervisor.name} (${supervisor.initials})") },
+                            onClick = {
+                                supervisorName = supervisor.name
+                                supervisorInitials = supervisor.initials
+                                manualEntry = false
+                                dropdownExpanded = false
+                            },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_enter_manually)) },
+                        onClick = {
+                            supervisorName = ""
+                            supervisorInitials = ""
+                            manualEntry = true
+                            dropdownExpanded = false
+                        },
+                    )
+                }
+            }
+
+            if (supervisors.isEmpty() || manualEntry) {
+                OutlinedTextField(
+                    value = supervisorName,
+                    onValueChange = { supervisorName = it },
+                    label = { Text(stringResource(R.string.hint_supervisor_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = supervisorInitials,
+                    onValueChange = { supervisorInitials = it.uppercase().take(4) },
+                    label = { Text(stringResource(R.string.hint_supervisor_initials)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.label_initials) + ": " + supervisorInitials,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick  = { showForm = false },
+                    onClick = {
+                        showForm = false
+                        dropdownExpanded = false
+                    },
                     modifier = Modifier.weight(1f),
-                ) { Text("Cancel") }
+                ) { Text(stringResource(R.string.action_cancel)) }
                 Button(
-                    onClick  = {
+                    onClick = {
                         if (supervisorName.isNotBlank() && supervisorInitials.isNotBlank()) {
                             onStart(supervisorName.trim(), supervisorInitials.trim())
                             showForm = false
                         }
                     },
-                    enabled  = supervisorName.isNotBlank() && supervisorInitials.isNotBlank(),
+                    enabled = supervisorName.isNotBlank() && supervisorInitials.isNotBlank(),
                     modifier = Modifier.weight(1f),
                 ) { Text(stringResource(R.string.button_start_drive)) }
             }
@@ -223,6 +303,7 @@ private fun PreviewTimerIdle() {
     CoDriveLogTheme {
         DriveTimerWidgetContent(
             uiState  = DriveTimerUiState.Idle,
+            supervisors = emptyList(),
             onStart  = { _, _ -> },
             onStop   = {},
         )
@@ -240,6 +321,7 @@ private fun PreviewTimerActiveDay() {
                 currentlyNight   = false,
                 hasGpsFix        = true,
             ),
+            supervisors = emptyList(),
             onStart  = { _, _ -> },
             onStop   = {},
         )
@@ -257,6 +339,7 @@ private fun PreviewTimerActiveNightNoGps() {
                 currentlyNight   = true,
                 hasGpsFix        = false,
             ),
+            supervisors = emptyList(),
             onStart  = { _, _ -> },
             onStop   = {},
         )

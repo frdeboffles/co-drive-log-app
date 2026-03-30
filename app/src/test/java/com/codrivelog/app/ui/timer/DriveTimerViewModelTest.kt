@@ -1,6 +1,8 @@
 package com.codrivelog.app.ui.timer
 
 import app.cash.turbine.test
+import com.codrivelog.app.data.model.Supervisor
+import com.codrivelog.app.data.repository.SupervisorRepository
 import com.codrivelog.app.service.DriveTimerRepository
 import com.codrivelog.app.service.TimerState
 import io.mockk.every
@@ -34,9 +36,13 @@ class DriveTimerViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private val timerStateFlow = MutableStateFlow<TimerState>(TimerState.Idle)
+    private val supervisorsFlow = MutableStateFlow<List<Supervisor>>(emptyList())
 
     private val timerRepository = mockk<DriveTimerRepository>(relaxed = true) {
         every { timerState } returns timerStateFlow
+    }
+    private val supervisorRepository = mockk<SupervisorRepository>(relaxed = true) {
+        every { getAll() } returns supervisorsFlow
     }
 
     // A relaxed Context mock — we only verify that startForegroundService /
@@ -51,7 +57,7 @@ class DriveTimerViewModelTest {
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = DriveTimerViewModel(timerRepository, context)
+        viewModel = DriveTimerViewModel(timerRepository, supervisorRepository, context)
     }
 
     @AfterEach

@@ -105,6 +105,9 @@ cd ColoradoTeenDriverLog
 # Release APK
 ./gradlew assembleRelease
 
+# Build + install release APK via USB (adb)
+./gradlew installRelease
+
 # Unit tests + coverage
 ./gradlew testDebugUnitTest
 ./gradlew koverHtmlReportDebug
@@ -132,11 +135,14 @@ cd ColoradoTeenDriverLog
     # Debug install (single command build+install)
     ./gradlew installDebug
 
-    # Release install (manual via adb)
-    adb install -r app/build/outputs/apk/release/app-release.apk
+    # Release install (single command build+install)
+    ./gradlew installRelease
 
     # or debug manual install:
     adb install app/build/outputs/apk/debug/app-debug.apk
+
+    # or release manual install via adb:
+    adb install -r app/build/outputs/apk/release/app-release.apk
     ```
 6. Open **CO Drive Log** from the app drawer.
 

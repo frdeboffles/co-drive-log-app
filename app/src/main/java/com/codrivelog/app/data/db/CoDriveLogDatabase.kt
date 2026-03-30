@@ -3,6 +3,7 @@ package com.codrivelog.app.data.db
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.codrivelog.app.data.model.DriveRoutePoint
 import com.codrivelog.app.data.model.DriveSession
 import com.codrivelog.app.data.model.Supervisor
 
@@ -19,8 +20,8 @@ import com.codrivelog.app.data.model.Supervisor
  * `fallbackToDestructiveMigration()` during early development.
  */
 @Database(
-    entities = [DriveSession::class, Supervisor::class],
-    version = 1,
+    entities = [DriveSession::class, Supervisor::class, DriveRoutePoint::class],
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(DateTimeConverters::class)
@@ -31,4 +32,7 @@ abstract class CoDriveLogDatabase : RoomDatabase() {
 
     /** DAO for supervisor operations. */
     abstract fun supervisorDao(): SupervisorDao
+
+    /** DAO for per-drive route point operations. */
+    abstract fun driveRoutePointDao(): DriveRoutePointDao
 }

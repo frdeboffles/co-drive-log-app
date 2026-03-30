@@ -80,6 +80,9 @@ cd ColoradoTeenDriverLog
 # Debug APK
 ./gradlew assembleDebug
 
+# Release APK
+./gradlew assembleRelease
+
 # Unit tests + coverage
 ./gradlew testDebugUnitTest
 ./gradlew koverHtmlReportDebug
@@ -94,13 +97,26 @@ cd ColoradoTeenDriverLog
 1. Enable **Developer Options** on the device (Settings → About Phone → tap Build Number 7 times).
 2. Enable **USB Debugging** and/or **Install via USB** in Developer Options.
 3. Connect the device via USB cable.
-4. Run:
+4. Build the APK you want to install:
    ```bash
-   ./gradlew installDebug
-   # or manually:
-   adb install app/build/outputs/apk/debug/app-debug.apk
+   # Debug APK (includes debug/dev tools)
+   ./gradlew assembleDebug
+
+   # Release APK (no debug/dev tools)
+   ./gradlew assembleRelease
    ```
-5. Open **CO Drive Log** from the app drawer.
+5. Install it:
+   ```bash
+    # Debug install (single command build+install)
+    ./gradlew installDebug
+
+    # Release install (manual via adb)
+    adb install -r app/build/outputs/apk/release/app-release.apk
+
+    # or debug manual install:
+    adb install app/build/outputs/apk/debug/app-debug.apk
+    ```
+6. Open **CO Drive Log** from the app drawer.
 
 You can also transfer the APK file via USB/email and open it directly on the device
 (you will be prompted to allow installs from unknown sources once).

@@ -1,9 +1,12 @@
 package com.codrivelog.app.ui.history
 
 import app.cash.turbine.test
+import com.codrivelog.app.data.fake.FakeDriveRoutePointDao
 import com.codrivelog.app.data.fake.FakeDriveSessionDao
 import com.codrivelog.app.data.fake.FakeSupervisorDao
+import com.codrivelog.app.data.model.DriveRoutePoint
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.repository.DriveRouteRepository
 import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.data.repository.SupervisorRepository
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +31,8 @@ class DriveHistoryViewModelTest {
     private lateinit var dao:       FakeDriveSessionDao
     private lateinit var repo:      DriveSessionRepository
     private lateinit var supervisorRepo: SupervisorRepository
+    private lateinit var routeRepo: DriveRouteRepository
+    private lateinit var routeDao: FakeDriveRoutePointDao
     private lateinit var viewModel: DriveHistoryViewModel
 
     @BeforeEach
@@ -36,7 +41,9 @@ class DriveHistoryViewModelTest {
         dao       = FakeDriveSessionDao()
         repo      = DriveSessionRepository(dao)
         supervisorRepo = SupervisorRepository(FakeSupervisorDao())
-        viewModel = DriveHistoryViewModel(repo, supervisorRepo)
+        routeDao = FakeDriveRoutePointDao()
+        routeRepo = DriveRouteRepository(routeDao)
+        viewModel = DriveHistoryViewModel(repo, supervisorRepo, routeRepo)
     }
 
     @AfterEach
@@ -97,6 +104,27 @@ class DriveHistoryViewModelTest {
 
             viewModel.delete(session)
             assertTrue(awaitItem().sessions.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `ui state exposes session ids that have route points`() = runTest {
+        val session = makeSession(id = 1L, date = LocalDate.of(2025, 6, 21))
+        dao.insert(session)
+        routeDao.insert(
+            DriveRoutePoint(
+                sessionId = 1L,
+                timestamp = LocalDateTime.of(2025, 6, 21, 9, 5),
+                latitude = 39.7392,
+                longitude = -104.9903,
+                accuracyMeters = 12f,
+            )
+        )
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertTrue(state.sessionIdsWithRoute.contains(1L))
             cancelAndIgnoreRemainingEvents()
         }
     }

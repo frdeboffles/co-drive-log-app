@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.codrivelog.app.data.model.Supervisor
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.repository.DriveRouteRepository
 import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.data.repository.SupervisorRepository
 import com.codrivelog.app.util.NightMinutesCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -33,15 +35,22 @@ import javax.inject.Inject
 class DriveHistoryViewModel @Inject constructor(
     private val repository: DriveSessionRepository,
     private val supervisorRepository: SupervisorRepository,
+    private val routeRepository: DriveRouteRepository,
 ) : ViewModel() {
 
     private val defaultLat = 39.7392
     private val defaultLng = -104.9903
 
     /** Full ordered list of all sessions (most-recent first). */
-    val uiState: StateFlow<DriveHistoryUiState> = repository
-        .getAll()
-        .map { DriveHistoryUiState(sessions = it) }
+    val uiState: StateFlow<DriveHistoryUiState> = combine(
+        repository.getAll(),
+        routeRepository.getSessionIdsWithPoints(),
+    ) { sessions, sessionIdsWithRoute ->
+        DriveHistoryUiState(
+            sessions = sessions,
+            sessionIdsWithRoute = sessionIdsWithRoute,
+        )
+    }
         .stateIn(
             scope        = viewModelScope,
             started      = SharingStarted.WhileSubscribed(5_000),
@@ -153,4 +162,5 @@ class DriveHistoryViewModel @Inject constructor(
  */
 data class DriveHistoryUiState(
     val sessions: List<DriveSession> = emptyList(),
+    val sessionIdsWithRoute: Set<Long> = emptySet(),
 )

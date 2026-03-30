@@ -38,6 +38,7 @@
     <string name="label_no_drives">No drives recorded yet</string>
     <string name="label_manual_entry_badge">Manual</string>
     <string name="cd_delete_drive">Delete drive</string>
+    <string name="action_view_route">View Route</string>
 
     <!-- Manual entry screen -->
     <string name="screen_manual_entry">Add Past Drive</string>

@@ -90,8 +90,10 @@ fun DriveHistoryScreen(
         DriveHistoryContent(
             modifier = Modifier.padding(padding),
             sessions = uiState.sessions,
+            sessionIdsWithRoute = uiState.sessionIdsWithRoute,
             onDelete = viewModel::delete,
             onEdit = { editingSession = it },
+            onViewRoute = {},
             onSeed = { if (BuildConfig.DEBUG) viewModel.seedRandomEntries(100) },
             onClearAll = { if (BuildConfig.DEBUG) viewModel.clearAll() },
         )
@@ -120,8 +122,10 @@ fun DriveHistoryScreen(
 @Composable
 fun DriveHistoryContent(
     sessions: List<DriveSession>,
+    sessionIdsWithRoute: Set<Long>,
     onDelete: (DriveSession) -> Unit,
     onEdit: (DriveSession) -> Unit,
+    onViewRoute: (DriveSession) -> Unit,
     onSeed: () -> Unit,
     onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
@@ -165,8 +169,10 @@ fun DriveHistoryContent(
             items(items = sessions, key = { it.id }) { session ->
                 DriveSessionCard(
                     session = session,
+                    hasRoute = sessionIdsWithRoute.contains(session.id),
                     onDelete = { onDelete(session) },
                     onEdit = { onEdit(session) },
+                    onViewRoute = { onViewRoute(session) },
                 )
             }
         }
@@ -179,8 +185,10 @@ private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 @Composable
 fun DriveSessionCard(
     session: DriveSession,
+    hasRoute: Boolean,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
+    onViewRoute: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
@@ -214,6 +222,11 @@ fun DriveSessionCard(
                         fontWeight = FontWeight.Medium,
                     )
                     Row {
+                        if (hasRoute) {
+                            TextButton(onClick = onViewRoute) {
+                                Text(stringResource(R.string.action_view_route))
+                            }
+                        }
                         IconButton(onClick = onEdit) {
                             Icon(Icons.Default.Edit, contentDescription = "Edit drive")
                         }
@@ -492,8 +505,10 @@ private fun PreviewDriveHistoryList() {
     CoDriveLogTheme {
         DriveHistoryContent(
             sessions = sampleSessions,
+            sessionIdsWithRoute = setOf(1L),
             onDelete = {},
             onEdit = {},
+            onViewRoute = {},
             onSeed = {},
             onClearAll = {},
         )
@@ -506,8 +521,10 @@ private fun PreviewDriveHistoryEmpty() {
     CoDriveLogTheme {
         DriveHistoryContent(
             sessions = emptyList(),
+            sessionIdsWithRoute = emptySet(),
             onDelete = {},
             onEdit = {},
+            onViewRoute = {},
             onSeed = {},
             onClearAll = {},
         )

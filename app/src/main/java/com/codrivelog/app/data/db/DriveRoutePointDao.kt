@@ -19,6 +19,9 @@ interface DriveRoutePointDao {
     @Query("SELECT COUNT(*) FROM drive_route_points WHERE sessionId = :sessionId")
     suspend fun countBySession(sessionId: Long): Int
 
+    @Query("SELECT DISTINCT sessionId FROM drive_route_points")
+    fun getSessionIdsWithPoints(): Flow<List<Long>>
+
     @Query("DELETE FROM drive_route_points WHERE sessionId = :sessionId")
     suspend fun deleteBySession(sessionId: Long)
 }

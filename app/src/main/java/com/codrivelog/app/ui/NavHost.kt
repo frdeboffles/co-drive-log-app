@@ -4,39 +4,72 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.codrivelog.app.ui.active.ActiveDriveScreen
 import com.codrivelog.app.ui.dashboard.DashboardScreen
+import com.codrivelog.app.ui.entry.ManualEntryScreen
+import com.codrivelog.app.ui.export.ExportScreen
+import com.codrivelog.app.ui.history.DriveHistoryScreen
+import com.codrivelog.app.ui.supervisor.SupervisorManagementScreen
 
 /** Top-level navigation destinations. */
 sealed class Screen(val route: String) {
-    data object Dashboard : Screen("dashboard")
-    data object Entry    : Screen("entry")
-    data object Export   : Screen("export")
+    data object Dashboard   : Screen("dashboard")
+    data object ActiveDrive : Screen("active_drive")
+    data object Entry       : Screen("entry")
+    data object History     : Screen("history")
+    data object Supervisors : Screen("supervisors")
+    data object Export      : Screen("export")
 }
 
 /**
  * Root navigation host wiring all top-level screens together.
- * Start destination is [Screen.Dashboard].
+ *
+ * Start destination is [Screen.Dashboard]. All back-navigation uses
+ * [androidx.navigation.NavController.popBackStack] so the back-stack is
+ * naturally managed by the NavController.
  */
 @Composable
 fun CoDriveLogNavHost() {
     val navController = rememberNavController()
     NavHost(
-        navController = navController,
+        navController    = navController,
         startDestination = Screen.Dashboard.route,
     ) {
         composable(Screen.Dashboard.route) {
             DashboardScreen(
-                onAddEntry = { navController.navigate(Screen.Entry.route) },
-                onExport   = { navController.navigate(Screen.Export.route) },
+                onAddEntry    = { navController.navigate(Screen.Entry.route) },
+                onExport      = { navController.navigate(Screen.Export.route) },
+                onViewHistory = { navController.navigate(Screen.History.route) },
+                onSupervisors = { navController.navigate(Screen.Supervisors.route) },
+            )
+        }
+        composable(Screen.ActiveDrive.route) {
+            ActiveDriveScreen(
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Screen.Entry.route) {
-            // Placeholder — will be implemented in a future iteration
-            PlaceholderScreen(title = "Add Entry")
+            ManualEntryScreen(
+                onBack  = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() },
+            )
+        }
+        composable(Screen.History.route) {
+            DriveHistoryScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Screen.Supervisors.route) {
+            SupervisorManagementScreen(
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(Screen.Export.route) {
-            // Placeholder — will be implemented in a future iteration
-            PlaceholderScreen(title = "Export")
+            ExportScreen(
+                onBack      = { navController.popBackStack() },
+                onExportPdf = { /* TODO Phase 6: PDF generation */ },
+                onExportCsv = { /* TODO Phase 6: CSV generation */ },
+            )
         }
     }
 }

@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
@@ -127,6 +128,65 @@ class DriveHistoryViewModelTest {
             assertTrue(state.sessionIdsWithRoute.contains(1L))
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `buildGoogleMapsDirectionsUrl returns null when fewer than two points`() = runTest {
+        val session = makeSession(id = 10L, date = LocalDate.of(2025, 6, 22))
+        dao.insert(session)
+
+        routeDao.insert(
+            DriveRoutePoint(
+                sessionId = 10L,
+                timestamp = LocalDateTime.of(2025, 6, 22, 9, 0),
+                latitude = 39.7392,
+                longitude = -104.9903,
+                accuracyMeters = 8f,
+            )
+        )
+
+        val url = viewModel.buildGoogleMapsDirectionsUrl(10L)
+        assertNull(url)
+    }
+
+    @Test
+    fun `buildGoogleMapsDirectionsUrl includes origin and destination`() = runTest {
+        val session = makeSession(id = 11L, date = LocalDate.of(2025, 6, 23))
+        dao.insert(session)
+
+        routeDao.insert(
+            DriveRoutePoint(
+                sessionId = 11L,
+                timestamp = LocalDateTime.of(2025, 6, 23, 9, 0),
+                latitude = 39.7000,
+                longitude = -104.9000,
+                accuracyMeters = 10f,
+            )
+        )
+        routeDao.insert(
+            DriveRoutePoint(
+                sessionId = 11L,
+                timestamp = LocalDateTime.of(2025, 6, 23, 9, 1),
+                latitude = 39.7100,
+                longitude = -104.9100,
+                accuracyMeters = 11f,
+            )
+        )
+        routeDao.insert(
+            DriveRoutePoint(
+                sessionId = 11L,
+                timestamp = LocalDateTime.of(2025, 6, 23, 9, 2),
+                latitude = 39.7200,
+                longitude = -104.9200,
+                accuracyMeters = 9f,
+            )
+        )
+
+        val url = viewModel.buildGoogleMapsDirectionsUrl(11L)
+        assertTrue(url != null)
+        assertTrue(url!!.contains("origin=39.700000,-104.900000"))
+        assertTrue(url.contains("destination=39.720000,-104.920000"))
+        assertTrue(url.contains("travelmode=driving"))
     }
 
     // ---- Helpers ----

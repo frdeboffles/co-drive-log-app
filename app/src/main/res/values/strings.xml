@@ -39,6 +39,7 @@
     <string name="label_manual_entry_badge">Manual</string>
     <string name="cd_delete_drive">Delete drive</string>
     <string name="action_view_route">View Route</string>
+    <string name="error_no_route_for_session">No route points available for this session.</string>
 
     <!-- Manual entry screen -->
     <string name="screen_manual_entry">Add Past Drive</string>

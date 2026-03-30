@@ -153,7 +153,46 @@ class DriveHistoryViewModel @Inject constructor(
     fun clearAll() {
         viewModelScope.launch { repository.deleteAll() }
     }
+
+    suspend fun buildGoogleMapsDirectionsUrl(sessionId: Long): String? {
+        val points = routeRepository.getBySession(sessionId).first()
+        if (points.size < 2) return null
+
+        val intermediate = points.drop(1).dropLast(1)
+        val sampled = sampleWaypoints(intermediate, MAX_MAP_WAYPOINTS)
+        val waypointsParam = if (sampled.isEmpty()) {
+            ""
+        } else {
+            sampled.joinToString("|") { "${it.latitude.formatCoord()},${it.longitude.formatCoord()}" }
+        }
+        val originLat = points.first().latitude.formatCoord()
+        val originLng = points.first().longitude.formatCoord()
+        val destLat = points.last().latitude.formatCoord()
+        val destLng = points.last().longitude.formatCoord()
+
+        return if (waypointsParam.isBlank()) {
+            "https://www.google.com/maps/dir/?api=1&origin=$originLat,$originLng&destination=$destLat,$destLng&travelmode=driving"
+        } else {
+            "https://www.google.com/maps/dir/?api=1&origin=$originLat,$originLng&destination=$destLat,$destLng&travelmode=driving&waypoints=$waypointsParam"
+        }
+    }
+
+    private fun <T> sampleWaypoints(values: List<T>, maxCount: Int): List<T> {
+        if (values.size <= maxCount) return values
+        if (maxCount <= 0) return emptyList()
+
+        val step = values.size.toDouble() / maxCount.toDouble()
+        return (0 until maxCount)
+            .map { index -> values[(index * step).toInt().coerceAtMost(values.lastIndex)] }
+    }
+
+    private companion object {
+        const val MAX_MAP_WAYPOINTS = 8
+    }
 }
+
+private fun Double.formatCoord(): String =
+    java.lang.String.format(java.util.Locale.US, "%.6f", this)
 
 /**
  * Immutable UI state for the history screen.

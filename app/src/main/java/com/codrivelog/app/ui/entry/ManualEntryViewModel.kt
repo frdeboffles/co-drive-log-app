@@ -18,6 +18,8 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import javax.inject.Inject
 
 /**
@@ -89,9 +91,11 @@ class ManualEntryViewModel @Inject constructor(
         }
 
         val totalMinutes = Duration.between(startDt, endDt).toMinutes().toInt()
+        val startUtc = startDt.atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()
+        val endUtc = endDt.atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()
         val nightMinutes = NightMinutesCalculator.computeNightMinutesForSession(
-            start        = startDt,
-            end          = endDt,
+            start        = startUtc,
+            end          = endUtc,
             latitudeDeg  = defaultLat,
             longitudeDeg = defaultLng,
         )

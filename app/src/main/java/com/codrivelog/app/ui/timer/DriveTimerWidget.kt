@@ -30,7 +30,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -111,13 +110,15 @@ private fun IdleContent(
     onStart: (supervisorName: String, supervisorInitials: String) -> Unit,
 ) {
     var showForm by remember { mutableStateOf(false) }
-    var supervisorName by rememberSaveable { mutableStateOf("") }
-    var supervisorInitials by rememberSaveable { mutableStateOf("") }
+    var selectedSupervisor by remember { mutableStateOf<Supervisor?>(null) }
     var dropdownExpanded by remember { mutableStateOf(false) }
-    var manualEntry by rememberSaveable { mutableStateOf(supervisors.isEmpty()) }
 
-    LaunchedEffect(supervisors.isEmpty()) {
-        if (supervisors.isEmpty()) manualEntry = true
+    LaunchedEffect(supervisors) {
+        if (supervisors.isEmpty()) {
+            selectedSupervisor = null
+        } else if (selectedSupervisor == null) {
+            selectedSupervisor = supervisors.first()
+        }
     }
 
     if (!showForm) {
@@ -131,11 +132,7 @@ private fun IdleContent(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (supervisors.isNotEmpty()) {
                 OutlinedTextField(
-                    value = if (!manualEntry && supervisorName.isBlank()) {
-                        stringResource(R.string.label_select_supervisor)
-                    } else {
-                        supervisorName
-                    },
+                    value = selectedSupervisor?.name ?: stringResource(R.string.label_select_supervisor),
                     onValueChange = {},
                     label = { Text(stringResource(R.string.label_supervisor)) },
                     readOnly = true,
@@ -157,43 +154,23 @@ private fun IdleContent(
                         DropdownMenuItem(
                             text = { Text("${supervisor.name} (${supervisor.initials})") },
                             onClick = {
-                                supervisorName = supervisor.name
-                                supervisorInitials = supervisor.initials
-                                manualEntry = false
+                                selectedSupervisor = supervisor
                                 dropdownExpanded = false
                             },
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.action_enter_manually)) },
-                        onClick = {
-                            supervisorName = ""
-                            supervisorInitials = ""
-                            manualEntry = true
-                            dropdownExpanded = false
-                        },
-                    )
                 }
-            }
-
-            if (supervisors.isEmpty() || manualEntry) {
-                OutlinedTextField(
-                    value = supervisorName,
-                    onValueChange = { supervisorName = it },
-                    label = { Text(stringResource(R.string.hint_supervisor_name)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = supervisorInitials,
-                    onValueChange = { supervisorInitials = it.uppercase().take(4) },
-                    label = { Text(stringResource(R.string.hint_supervisor_initials)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             } else {
                 Text(
-                    text = stringResource(R.string.label_initials) + ": " + supervisorInitials,
+                    text = stringResource(R.string.label_no_supervisors),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            selectedSupervisor?.let { supervisor ->
+                Text(
+                    text = stringResource(R.string.label_initials) + ": " + supervisor.initials,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -209,12 +186,12 @@ private fun IdleContent(
                 ) { Text(stringResource(R.string.action_cancel)) }
                 Button(
                     onClick = {
-                        if (supervisorName.isNotBlank() && supervisorInitials.isNotBlank()) {
-                            onStart(supervisorName.trim(), supervisorInitials.trim())
+                        selectedSupervisor?.let { supervisor ->
+                            onStart(supervisor.name, supervisor.initials)
                             showForm = false
                         }
                     },
-                    enabled = supervisorName.isNotBlank() && supervisorInitials.isNotBlank(),
+                    enabled = selectedSupervisor != null,
                     modifier = Modifier.weight(1f),
                 ) { Text(stringResource(R.string.button_start_drive)) }
             }

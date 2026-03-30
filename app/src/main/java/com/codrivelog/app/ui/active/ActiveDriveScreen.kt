@@ -29,7 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -140,13 +139,11 @@ private fun IdleControls(
     onStart:     (name: String, initials: String) -> Unit,
 ) {
     var selectedSupervisor  by remember { mutableStateOf<Supervisor?>(null) }
-    var customName          by remember { mutableStateOf("") }
-    var customInitials      by remember { mutableStateOf("") }
-    var useCustom           by remember { mutableStateOf(supervisors.isEmpty()) }
     var dropdownExpanded    by remember { mutableStateOf(false) }
 
-    // If supervisors list changes and was empty, flip to custom mode automatically
-    if (supervisors.isEmpty() && !useCustom) useCustom = true
+    if (supervisors.isNotEmpty() && selectedSupervisor == null) {
+        selectedSupervisor = supervisors.first()
+    }
 
     Text(
         text  = "Ready to Start",
@@ -174,11 +171,7 @@ private fun IdleControls(
                         onClick  = { dropdownExpanded = true },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(
-                            text     = selectedSupervisor?.name
-                                ?: stringResource(R.string.label_select_supervisor),
-                            modifier = Modifier.weight(1f),
-                        )
+                        Text(text = selectedSupervisor?.name ?: stringResource(R.string.label_select_supervisor), modifier = Modifier.weight(1f))
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                     }
                     DropdownMenu(
@@ -191,42 +184,23 @@ private fun IdleControls(
                                 onClick = {
                                     selectedSupervisor = s
                                     dropdownExpanded   = false
-                                    useCustom          = false
                                 },
                             )
                         }
-                        DropdownMenuItem(
-                            text    = { Text("Enter manually…") },
-                            onClick = {
-                                useCustom          = true
-                                selectedSupervisor = null
-                                dropdownExpanded   = false
-                            },
-                        )
                     }
                 }
-            }
-            if (useCustom || supervisors.isEmpty()) {
-                OutlinedTextField(
-                    value         = customName,
-                    onValueChange = { customName = it },
-                    label         = { Text(stringResource(R.string.hint_supervisor_name)) },
-                    singleLine    = true,
-                    modifier      = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value         = customInitials,
-                    onValueChange = { customInitials = it.uppercase().take(4) },
-                    label         = { Text(stringResource(R.string.hint_supervisor_initials)) },
-                    singleLine    = true,
-                    modifier      = Modifier.fillMaxWidth(),
+            } else {
+                Text(
+                    text = stringResource(R.string.label_no_supervisors),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
     }
 
-    val effectiveName     = selectedSupervisor?.name     ?: customName.trim()
-    val effectiveInitials = selectedSupervisor?.initials ?: customInitials.trim()
+    val effectiveName     = selectedSupervisor?.name.orEmpty()
+    val effectiveInitials = selectedSupervisor?.initials.orEmpty()
     val canStart          = effectiveName.isNotBlank() && effectiveInitials.isNotBlank()
 
     Button(

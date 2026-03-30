@@ -33,6 +33,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import javax.inject.Inject
 
 /**
@@ -144,9 +146,11 @@ class DriveTimerService : Service() {
             // If GPS was never available, fall back to the manually-accumulated nightSeconds
             // (which respects any manual night override the user toggled during the drive).
             val computedNightMinutes = lastLocation?.let { loc ->
+                val startUtc = toUtc(start)
+                val endUtc = toUtc(end)
                 NightMinutesCalculator.computeNightMinutesForSession(
-                    start         = start,
-                    end           = end,
+                    start         = startUtc,
+                    end           = endUtc,
                     latitudeDeg   = loc.latitude,
                     longitudeDeg  = loc.longitude,
                 )
@@ -218,10 +222,10 @@ class DriveTimerService : Service() {
                 val fix = locationProvider.getLastLocation()
                 if (fix != null) {
                     lastLocation = fix
-                    val now   = LocalDateTime.now()
-                    val times = SunCalculator.calculate(fix.latitude, fix.longitude, now.toLocalDate())
+                    val nowUtc = LocalDateTime.now(ZoneOffset.UTC)
+                    val times = SunCalculator.calculate(fix.latitude, fix.longitude, nowUtc.toLocalDate())
 
-                    isCurrentlyNight = isNight(now, times)
+                    isCurrentlyNight = isNightUtc(nowUtc, times)
                 }
                 delay(LOCATION_POLL_INTERVAL_MS)
             }
@@ -241,26 +245,11 @@ class DriveTimerService : Service() {
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
 
-    /**
-     * Determines whether [now] falls in night conditions given the computed [sunTimes].
-     *
-     * Returns `true` when:
-     * - sunrise is null (polar night), OR
-     * - the current time is before sunrise, OR
-     * - the current time is after sunset (or sunset is null = midnight sun → `false`)
-     */
-    private fun isNight(now: LocalDateTime, sunTimes: SunCalculator.SunTimes): Boolean {
-        val date     = now.toLocalDate()
-        val sunrise  = sunTimes.sunrise?.let { date.atTime(it) } ?: return true   // polar night
-        val sunsetLt = sunTimes.sunset  ?: return false                            // midnight sun
-        // Handle sunset that wraps past midnight UTC
-        val sunset = if (sunsetLt < sunTimes.sunrise) {
-            date.plusDays(1).atTime(sunsetLt)
-        } else {
-            date.atTime(sunsetLt)
-        }
-        return now.isBefore(sunrise) || now.isAfter(sunset) || now.isEqual(sunset)
-    }
+    private fun toUtc(localDateTime: LocalDateTime): LocalDateTime =
+        localDateTime
+            .atZone(ZoneId.systemDefault())
+            .withZoneSameInstant(ZoneOffset.UTC)
+            .toLocalDateTime()
 
     // ---- Notification ----
 
@@ -329,4 +318,17 @@ class DriveTimerService : Service() {
         /** How often the GPS cache is polled to update day/night status. */
         internal const val LOCATION_POLL_INTERVAL_MS = 60_000L
     }
+}
+
+internal fun isNightUtc(nowUtc: LocalDateTime, sunTimes: SunCalculator.SunTimes): Boolean {
+    val date = nowUtc.toLocalDate()
+    val sunrise = sunTimes.sunrise?.let { date.atTime(it) } ?: return true
+    val sunsetLt = sunTimes.sunset ?: return false
+    val sunriseLt = sunTimes.sunrise ?: return true
+    val sunset = if (sunsetLt < sunriseLt) {
+        date.plusDays(1).atTime(sunsetLt)
+    } else {
+        date.atTime(sunsetLt)
+    }
+    return nowUtc.isBefore(sunrise) || nowUtc.isEqual(sunset) || nowUtc.isAfter(sunset)
 }

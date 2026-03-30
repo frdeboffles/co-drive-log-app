@@ -13,8 +13,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.codrivelog.app.data.fake.FakeDriveSessionRepository
+import com.codrivelog.app.data.fake.FakeDriveSessionDao
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.onboarding.OnboardingRepository
 import com.codrivelog.app.ui.dashboard.CircularHoursCard
 import com.codrivelog.app.ui.dashboard.DashboardScreen
@@ -166,15 +167,13 @@ class DashboardScreenTest {
     // ---- Helpers ----
 
     /**
-     * Creates a [DashboardViewModel] backed by a [FakeDriveSessionRepository]
+     * Creates a [DashboardViewModel] backed by a [FakeDriveSessionDao]
      * pre-seeded with the sessions from [initialState].
-     *
-     * This avoids the need for Hilt or a real Room database in these tests.
      */
     private fun makeFakeDashboardViewModel(
         initialState: DashboardUiState,
     ): DashboardViewModel = DashboardViewModel(
-        repository = FakeDriveSessionRepository(initialSessions = initialState.recentDrives),
+        repository = DriveSessionRepository(FakeDriveSessionDao(initial = initialState.recentDrives)),
         onboardingRepository = mockk<OnboardingRepository> {
             every { studentName } returns flowOf("")
             every { permitNumber } returns flowOf("")

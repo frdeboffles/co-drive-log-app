@@ -243,8 +243,8 @@ fun DriveSessionCard(
                         fontWeight = FontWeight.Medium,
                     )
                     Row {
-                        if (hasRoute) {
-                            TextButton(onClick = onViewRoute) {
+                        if (!session.isManualEntry) {
+                            TextButton(onClick = onViewRoute, enabled = hasRoute) {
                                 Text(stringResource(R.string.action_view_route))
                             }
                         }

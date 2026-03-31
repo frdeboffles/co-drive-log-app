@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     onExportCsv    = { exportCsv(uiState.studentName) },
+                    onExportGeoJson = { exportGeoJson() },
                 )
             }
         }
@@ -118,6 +119,22 @@ class MainActivity : ComponentActivity() {
                 )
             } else {
                 Toast.makeText(this@MainActivity, "No drive sessions to export.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun exportGeoJson() {
+        lifecycleScope.launch {
+            val uri = exportManager.exportGeoJson()
+            if (uri != null) {
+                startActivity(
+                    android.content.Intent.createChooser(
+                        exportManager.buildOpenIntent(uri, "application/geo+json"),
+                        "Open GeoJSON with…",
+                    )
+                )
+            } else {
+                Toast.makeText(this@MainActivity, "No routes to export.", Toast.LENGTH_SHORT).show()
             }
         }
     }

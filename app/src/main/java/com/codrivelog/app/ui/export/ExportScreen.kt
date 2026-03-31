@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -67,6 +68,7 @@ import java.time.format.DateTimeFormatter
  * @param onBack       Invoked when the user taps the back button.
  * @param onExportPdf  Invoked when the user taps "Export PDF".
  * @param onExportCsv  Invoked when the user taps "Export CSV".
+ * @param onExportGeoJson Invoked when the user taps "Export GeoJSON".
  * @param viewModel    [ExportViewModel] provided by Hilt.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,6 +77,7 @@ fun ExportScreen(
     onBack:      () -> Unit = {},
     onExportPdf: (signatureName: String, signatureDate: String) -> Unit = { _, _ -> },
     onExportCsv: () -> Unit = {},
+    onExportGeoJson: () -> Unit = {},
     viewModel:   ExportViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -97,6 +100,7 @@ fun ExportScreen(
             uiState       = uiState,
             onExportPdf   = { showPdfDialog = true },
             onExportCsv   = onExportCsv,
+            onExportGeoJson = onExportGeoJson,
         )
 
         if (showPdfDialog) {
@@ -231,6 +235,7 @@ fun ExportContent(
     uiState:     ExportUiState,
     onExportPdf: () -> Unit,
     onExportCsv: () -> Unit,
+    onExportGeoJson: () -> Unit,
     modifier:    Modifier = Modifier,
 ) {
     Column(
@@ -263,6 +268,16 @@ fun ExportContent(
             primary     = false,
             enabled     = uiState.sessionCount > 0,
             onClick     = onExportCsv,
+        )
+
+        ExportOptionCard(
+            icon        = Icons.Default.Map,
+            title       = stringResource(R.string.label_export_geojson),
+            description = stringResource(R.string.desc_export_geojson),
+            buttonLabel = stringResource(R.string.button_export_geojson),
+            primary     = false,
+            enabled     = uiState.routeSessionCount > 0,
+            onClick     = onExportGeoJson,
         )
 
         if (uiState.sessionCount == 0) {
@@ -402,11 +417,13 @@ private fun PreviewExportWithSessions() {
         ExportContent(
             uiState = ExportUiState(
                 sessionCount = 12,
+                routeSessionCount = 8,
                 totalHours   = 23.5f,
                 nightHours   = 4.0f,
             ),
             onExportPdf = {},
             onExportCsv = {},
+            onExportGeoJson = {},
         )
     }
 }
@@ -419,6 +436,7 @@ private fun PreviewExportEmpty() {
             uiState     = ExportUiState(),
             onExportPdf = {},
             onExportCsv = {},
+            onExportGeoJson = {},
         )
     }
 }

@@ -37,12 +37,14 @@ sealed class Screen(val route: String) {
  * @param showOnboarding `true` on first launch (DataStore flag not yet set).
  * @param onExportPdf    Invoked when the user confirms PDF export/signature details.
  * @param onExportCsv    Invoked when the user confirms CSV export.
+ * @param onExportGeoJson Invoked when the user confirms GeoJSON export.
  */
 @Composable
 fun CoDriveLogNavHost(
     showOnboarding: Boolean = false,
     onExportPdf:    (String, String) -> Unit = { _, _ -> },
     onExportCsv:    () -> Unit = {},
+    onExportGeoJson: () -> Unit = {},
 ) {
     val navController    = rememberNavController()
     val startDestination = if (showOnboarding) Screen.Onboarding.route
@@ -95,6 +97,7 @@ fun CoDriveLogNavHost(
                 onBack      = { navController.popBackStack() },
                 onExportPdf = onExportPdf,
                 onExportCsv = onExportCsv,
+                onExportGeoJson = onExportGeoJson,
             )
         }
     }

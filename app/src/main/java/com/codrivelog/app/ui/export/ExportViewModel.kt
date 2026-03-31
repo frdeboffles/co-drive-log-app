@@ -3,6 +3,7 @@ package com.codrivelog.app.ui.export
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.codrivelog.app.data.model.Supervisor
+import com.codrivelog.app.data.repository.DriveRouteRepository
 import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.data.repository.SupervisorRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,18 +29,22 @@ import javax.inject.Inject
 class ExportViewModel @Inject constructor(
     repository: DriveSessionRepository,
     supervisorRepository: SupervisorRepository,
+    routeRepository: DriveRouteRepository,
 ) : ViewModel() {
 
     /** Summary data shown at the top of the export screen. */
     val uiState: StateFlow<ExportUiState> = combine(
         repository.getAll(),
         supervisorRepository.getAll(),
-    ) { sessions, supervisors ->
+        routeRepository.getSessionIdsWithPoints(),
+    ) { sessions, supervisors, sessionIdsWithRoute ->
+            val routeSessionCount = sessions.count { session -> sessionIdsWithRoute.contains(session.id) }
             ExportUiState(
-                sessionCount = sessions.size,
-                totalHours   = sessions.sumOf { it.totalMinutes }.toFloat() / 60f,
-                nightHours   = sessions.sumOf { it.nightMinutes }.toFloat() / 60f,
-                supervisors  = supervisors,
+                sessionCount      = sessions.size,
+                routeSessionCount = routeSessionCount,
+                totalHours        = sessions.sumOf { it.totalMinutes }.toFloat() / 60f,
+                nightHours        = sessions.sumOf { it.nightMinutes }.toFloat() / 60f,
+                supervisors       = supervisors,
             )
         }
         .stateIn(
@@ -58,8 +63,9 @@ class ExportViewModel @Inject constructor(
  * @property supervisors  Available supervisors for PDF signature selection.
  */
 data class ExportUiState(
-    val sessionCount: Int   = 0,
-    val totalHours:   Float = 0f,
-    val nightHours:   Float = 0f,
-    val supervisors:  List<Supervisor> = emptyList(),
+    val sessionCount: Int = 0,
+    val routeSessionCount: Int = 0,
+    val totalHours: Float = 0f,
+    val nightHours: Float = 0f,
+    val supervisors: List<Supervisor> = emptyList(),
 )

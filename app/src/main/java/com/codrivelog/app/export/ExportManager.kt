@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import com.codrivelog.app.data.repository.DriveRouteRepository
 import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.core.dr2324.Dr2324Document
 import com.codrivelog.core.dr2324.Dr2324Mapper
@@ -39,6 +40,7 @@ import javax.inject.Singleton
 class ExportManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: DriveSessionRepository,
+    private val routeRepository: DriveRouteRepository,
 ) {
 
     private val dateSuffix: String
@@ -125,6 +127,30 @@ class ExportManager @Inject constructor(
 
         saveToDownloads(fileName, mimeType) { stream ->
             CsvExporter.write(rows, studentName, stream)
+        }
+    }
+
+    suspend fun exportGeoJson(): Uri? = withContext(Dispatchers.IO) {
+        val sessions = repository.getAll()
+            .first()
+            .sortedBy { it.date }
+
+        val features = sessions.mapNotNull { session ->
+            val points = routeRepository.getBySession(session.id).first()
+            if (points.isEmpty()) {
+                null
+            } else {
+                GeoJsonFeature(session = session, routePoints = points)
+            }
+        }
+
+        if (features.isEmpty()) return@withContext null
+
+        val fileName = "CoDriveLog_${dateSuffix}.geojson"
+        val mimeType = "application/geo+json"
+
+        saveToDownloads(fileName, mimeType) { stream ->
+            GeoJsonExporter.write(features, stream)
         }
     }
 

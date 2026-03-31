@@ -2,9 +2,12 @@ package com.codrivelog.app.ui.export
 
 import app.cash.turbine.test
 import com.codrivelog.app.data.fake.FakeDriveSessionDao
+import com.codrivelog.app.data.fake.FakeDriveRoutePointDao
 import com.codrivelog.app.data.fake.FakeSupervisorDao
+import com.codrivelog.app.data.model.DriveRoutePoint
 import com.codrivelog.app.data.model.DriveSession
 import com.codrivelog.app.data.model.Supervisor
+import com.codrivelog.app.data.repository.DriveRouteRepository
 import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.data.repository.SupervisorRepository
 import kotlinx.coroutines.Dispatchers
@@ -27,17 +30,21 @@ class ExportViewModelTest {
     private val testDispatcher = UnconfinedTestDispatcher()
 
     private lateinit var dao:       FakeDriveSessionDao
+    private lateinit var routeDao:  FakeDriveRoutePointDao
     private lateinit var repo:      DriveSessionRepository
+    private lateinit var routeRepo: DriveRouteRepository
     private lateinit var supervisorRepo: SupervisorRepository
     private lateinit var viewModel: ExportViewModel
 
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        dao       = FakeDriveSessionDao()
-        repo      = DriveSessionRepository(dao)
+        dao = FakeDriveSessionDao()
+        routeDao = FakeDriveRoutePointDao()
+        repo = DriveSessionRepository(dao)
+        routeRepo = DriveRouteRepository(routeDao)
         supervisorRepo = SupervisorRepository(FakeSupervisorDao())
-        viewModel = ExportViewModel(repo, supervisorRepo)
+        viewModel = ExportViewModel(repo, supervisorRepo, routeRepo)
     }
 
     @AfterEach
@@ -52,6 +59,7 @@ class ExportViewModelTest {
         viewModel.uiState.test {
             val state = awaitItem()
             assertEquals(0, state.sessionCount)
+            assertEquals(0, state.routeSessionCount)
             assertEquals(0f, state.totalHours)
             assertEquals(0f, state.nightHours)
             cancelAndIgnoreRemainingEvents()
@@ -109,6 +117,29 @@ class ExportViewModelTest {
             assertEquals(2, state.supervisors.size)
             assertEquals("Alex Roe", state.supervisors[0].name)
             assertEquals("Jane Doe", state.supervisors[1].name)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `route session count includes only sessions with route points`() = runTest {
+        val sessionWithRoute = dao.insert(makeSession(totalMinutes = 45, nightMinutes = 0))
+        dao.insert(makeSession(totalMinutes = 30, nightMinutes = 0))
+
+        routeDao.insert(
+            DriveRoutePoint(
+                sessionId = sessionWithRoute,
+                timestamp = LocalDateTime.of(2025, 6, 21, 9, 5),
+                latitude = 39.7392,
+                longitude = -104.9903,
+                accuracyMeters = 5f,
+            )
+        )
+
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertEquals(2, state.sessionCount)
+            assertEquals(1, state.routeSessionCount)
             cancelAndIgnoreRemainingEvents()
         }
     }

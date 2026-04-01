@@ -11,10 +11,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,7 +28,9 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.DatePicker
@@ -56,9 +61,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -93,6 +100,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import androidx.compose.foundation.shape.CircleShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -277,20 +285,34 @@ fun DriveSessionCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Medium,
                     )
-                    Row {
-                        if (!session.isManualEntry) {
-                            TextButton(onClick = onViewRoute, enabled = hasRoute) {
-                                Text(stringResource(R.string.action_view_route))
-                            }
-                            TextButton(onClick = onViewMap, enabled = hasRoute) {
-                                Text(stringResource(R.string.action_view_map))
-                            }
-                        }
-                        IconButton(onClick = onEdit) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit drive")
-                        }
-                        IconButton(onClick = onDelete) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete_drive))
+                    Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                        ActionIcon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit drive",
+                            enabled = true,
+                            onClick = onEdit,
+                        )
+                        ActionIcon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.cd_delete_drive),
+                            enabled = true,
+                            onClick = onDelete,
+                        )
+                    }
+                    if (!session.isManualEntry) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                            ActionIcon(
+                                imageVector = Icons.Default.Map,
+                                contentDescription = stringResource(R.string.action_view_route),
+                                enabled = hasRoute,
+                                onClick = onViewRoute,
+                            )
+                            ActionIcon(
+                                imageVector = Icons.Default.Public,
+                                contentDescription = stringResource(R.string.action_view_map),
+                                enabled = hasRoute,
+                                onClick = onViewMap,
+                            )
                         }
                     }
                 }
@@ -346,6 +368,35 @@ fun DriveSessionCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ActionIcon(
+    imageVector: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val tint = if (enabled) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+    }
+
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -438,6 +489,7 @@ private fun RouteMapDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopStart)
+                    .statusBarsPadding()
                     .padding(16.dp),
             ) {
                 Text(
@@ -451,7 +503,8 @@ private fun RouteMapDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomEnd)
-                    .padding(16.dp),
+                    .navigationBarsPadding()
+                    .padding(end = 16.dp, bottom = 88.dp),
                 horizontalArrangement = Arrangement.End,
             ) {
                 Button(onClick = onDismiss) {

@@ -6,6 +6,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.codrivelog.app.onboarding.OnboardingScreen
 import com.codrivelog.app.ui.active.ActiveDriveScreen
+import com.codrivelog.app.ui.about.AttributionsScreen
 import com.codrivelog.app.ui.dashboard.DashboardScreen
 import com.codrivelog.app.ui.entry.ManualEntryScreen
 import com.codrivelog.app.ui.export.ExportScreen
@@ -21,6 +22,7 @@ sealed class Screen(val route: String) {
     data object History     : Screen("history")
     data object Supervisors : Screen("supervisors")
     data object Export      : Screen("export")
+    data object Attributions : Screen("attributions")
 }
 
 /**
@@ -69,6 +71,7 @@ fun CoDriveLogNavHost(
                 onExport      = { navController.navigate(Screen.Export.route) },
                 onViewHistory = { navController.navigate(Screen.History.route) },
                 onSupervisors = { navController.navigate(Screen.Supervisors.route) },
+                onAttributions = { navController.navigate(Screen.Attributions.route) },
             )
         }
         composable(Screen.ActiveDrive.route) {
@@ -98,6 +101,11 @@ fun CoDriveLogNavHost(
                 onExportPdf = onExportPdf,
                 onExportCsv = onExportCsv,
                 onExportGeoJson = onExportGeoJson,
+            )
+        }
+        composable(Screen.Attributions.route) {
+            AttributionsScreen(
+                onBack = { navController.popBackStack() },
             )
         }
     }

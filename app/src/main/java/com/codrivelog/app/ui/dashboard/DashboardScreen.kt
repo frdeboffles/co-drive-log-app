@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Share
@@ -65,6 +66,7 @@ fun DashboardScreen(
     onExport: () -> Unit,
     onViewHistory: () -> Unit = {},
     onSupervisors: () -> Unit = {},
+    onAttributions: () -> Unit = {},
     timerWidget: @Composable () -> Unit = { DriveTimerWidget() },
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
@@ -84,6 +86,9 @@ fun DashboardScreen(
                     }
                     IconButton(onClick = onExport) {
                         Icon(Icons.Default.Share, contentDescription = stringResource(R.string.action_export))
+                    }
+                    IconButton(onClick = onAttributions) {
+                        Icon(Icons.Default.Info, contentDescription = stringResource(R.string.screen_attributions))
                     }
                 },
             )

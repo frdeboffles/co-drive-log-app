@@ -6,6 +6,12 @@
     <!-- Actions -->
     <string name="action_add_entry">Add Entry</string>
     <string name="action_export">Export</string>
+    <string name="screen_attributions">Attributions</string>
+    <string name="attributions_intro">This app uses open source software and open data. Thank you to these projects and communities.</string>
+    <string name="label_about_app">About this app</string>
+    <string name="label_app_version_value">Version: %1$s</string>
+    <string name="label_app_author_value">Created by: %1$s</string>
+    <string name="app_author_name">François-Régis Deboffles</string>
 
     <!-- Dashboard -->
     <string name="label_total_hours">Total Hours</string>

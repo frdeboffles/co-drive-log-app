@@ -2,6 +2,9 @@ package com.codrivelog.app.ui.history
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,12 +40,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +56,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.codrivelog.app.BuildConfig
@@ -66,6 +74,20 @@ import com.codrivelog.app.ui.toDatePickerUtcMillis
 import com.codrivelog.app.ui.toLocalDateFromDatePickerUtc
 import com.codrivelog.app.ui.theme.CoDriveLogTheme
 import kotlinx.coroutines.launch
+import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.PropertyFactory.lineCap
+import org.maplibre.android.style.layers.PropertyFactory.lineColor
+import org.maplibre.android.style.layers.PropertyFactory.lineWidth
+import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.geojson.Feature
+import org.maplibre.geojson.LineString
+import org.maplibre.geojson.Point
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -82,6 +104,7 @@ fun DriveHistoryScreen(
     var editingSession by remember { mutableStateOf<DriveSession?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var mapSession by remember { mutableStateOf<DriveSession?>(null) }
 
     Scaffold(
         topBar = {
@@ -115,6 +138,7 @@ fun DriveHistoryScreen(
                     }
                 }
             },
+            onViewMap = { session -> mapSession = session },
             onSeed = { if (BuildConfig.DEBUG) viewModel.seedRandomEntries(100) },
             onClearAll = { if (BuildConfig.DEBUG) viewModel.clearAll() },
         )
@@ -138,6 +162,14 @@ fun DriveHistoryScreen(
             },
         )
     }
+
+    mapSession?.let { session ->
+        RouteMapDialog(
+            title = session.date.format(dateFormatter),
+            onDismiss = { mapSession = null },
+            loadRoute = { viewModel.getRoutePath(session.id) },
+        )
+    }
 }
 
 @Composable
@@ -147,6 +179,7 @@ fun DriveHistoryContent(
     onDelete: (DriveSession) -> Unit,
     onEdit: (DriveSession) -> Unit,
     onViewRoute: (DriveSession) -> Unit,
+    onViewMap: (DriveSession) -> Unit,
     onSeed: () -> Unit,
     onClearAll: () -> Unit,
     modifier: Modifier = Modifier,
@@ -194,6 +227,7 @@ fun DriveHistoryContent(
                     onDelete = { onDelete(session) },
                     onEdit = { onEdit(session) },
                     onViewRoute = { onViewRoute(session) },
+                    onViewMap = { onViewMap(session) },
                 )
             }
         }
@@ -210,6 +244,7 @@ fun DriveSessionCard(
     onDelete: () -> Unit,
     onEdit: () -> Unit,
     onViewRoute: () -> Unit,
+    onViewMap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
@@ -246,6 +281,9 @@ fun DriveSessionCard(
                         if (!session.isManualEntry) {
                             TextButton(onClick = onViewRoute, enabled = hasRoute) {
                                 Text(stringResource(R.string.action_view_route))
+                            }
+                            TextButton(onClick = onViewMap, enabled = hasRoute) {
+                                Text(stringResource(R.string.action_view_map))
                             }
                         }
                         IconButton(onClick = onEdit) {
@@ -306,6 +344,119 @@ fun DriveSessionCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RouteMapDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    loadRoute: suspend () -> List<RouteCoordinate>,
+) {
+    val context = LocalContext.current
+    var route by remember { mutableStateOf<List<RouteCoordinate>>(emptyList()) }
+
+    DisposableEffect(Unit) {
+        MapLibre.getInstance(context)
+        onDispose {}
+    }
+
+    LaunchedEffect(Unit) {
+        route = loadRoute()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    MapView(ctx).apply {
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                        onCreate(Bundle())
+                        onStart()
+                        onResume()
+                    }
+                },
+                update = { mapView ->
+                    if (route.size >= 2) {
+                        mapView.getMapAsync { map ->
+                            map.setStyle("https://tiles.openfreemap.org/styles/positron") { style ->
+                                val points = route.map { Point.fromLngLat(it.longitude, it.latitude) }
+                                val source = GeoJsonSource(
+                                    "route-source",
+                                    Feature.fromGeometry(LineString.fromLngLats(points)),
+                                )
+                                style.removeLayer("route-layer")
+                                style.removeSource("route-source")
+                                style.addSource(source)
+                                style.addLayer(
+                                    LineLayer("route-layer", "route-source").apply {
+                                        setProperties(
+                                            lineColor("#1A73E8"),
+                                            lineWidth(4f),
+                                            lineCap(Property.LINE_CAP_ROUND),
+                                        )
+                                    }
+                                )
+
+                                val boundsBuilder = LatLngBounds.Builder()
+                                route.forEach { coord ->
+                                    boundsBuilder.include(LatLng(coord.latitude, coord.longitude))
+                                }
+                                map.moveCamera(
+                                    CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 80),
+                                )
+                            }
+                        }
+                    }
+                },
+            )
+
+            if (route.size < 2) {
+                Card(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.error_no_route_for_session),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopStart)
+                    .padding(16.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.label_route_map_title, title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Button(onClick = onDismiss) {
+                    Text(text = stringResource(R.string.action_close))
+                }
             }
         }
     }
@@ -525,6 +676,7 @@ private fun PreviewDriveHistoryList() {
             onDelete = {},
             onEdit = {},
             onViewRoute = {},
+            onViewMap = {},
             onSeed = {},
             onClearAll = {},
         )
@@ -541,6 +693,7 @@ private fun PreviewDriveHistoryEmpty() {
             onDelete = {},
             onEdit = {},
             onViewRoute = {},
+            onViewMap = {},
             onSeed = {},
             onClearAll = {},
         )

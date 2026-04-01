@@ -20,6 +20,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneOffset
 import kotlin.random.Random
 import javax.inject.Inject
 
@@ -177,6 +178,18 @@ class DriveHistoryViewModel @Inject constructor(
         }
     }
 
+    suspend fun getRoutePath(sessionId: Long): List<RouteCoordinate> =
+        routeRepository.getBySession(sessionId)
+            .first()
+            .sortedBy { it.timestamp }
+            .map { point ->
+                RouteCoordinate(
+                    latitude = point.latitude,
+                    longitude = point.longitude,
+                    timestampEpochSeconds = point.timestamp.toEpochSecond(ZoneOffset.UTC),
+                )
+            }
+
     private fun <T> sampleWaypoints(values: List<T>, maxCount: Int): List<T> {
         if (values.size <= maxCount) return values
         if (maxCount <= 0) return emptyList()
@@ -202,4 +215,10 @@ private fun Double.formatCoord(): String =
 data class DriveHistoryUiState(
     val sessions: List<DriveSession> = emptyList(),
     val sessionIdsWithRoute: Set<Long> = emptySet(),
+)
+
+data class RouteCoordinate(
+    val latitude: Double,
+    val longitude: Double,
+    val timestampEpochSeconds: Long,
 )

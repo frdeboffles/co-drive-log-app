@@ -189,6 +189,38 @@ class DriveHistoryViewModelTest {
         assertTrue(url.contains("travelmode=driving"))
     }
 
+    @Test
+    fun `getRoutePath returns points sorted by timestamp`() = runTest {
+        val session = makeSession(id = 12L, date = LocalDate.of(2025, 6, 24))
+        dao.insert(session)
+
+        routeDao.insert(
+            DriveRoutePoint(
+                sessionId = 12L,
+                timestamp = LocalDateTime.of(2025, 6, 24, 9, 2),
+                latitude = 39.7200,
+                longitude = -104.9200,
+                accuracyMeters = 9f,
+            )
+        )
+        routeDao.insert(
+            DriveRoutePoint(
+                sessionId = 12L,
+                timestamp = LocalDateTime.of(2025, 6, 24, 9, 0),
+                latitude = 39.7000,
+                longitude = -104.9000,
+                accuracyMeters = 10f,
+            )
+        )
+
+        val route = viewModel.getRoutePath(12L)
+        assertEquals(2, route.size)
+        assertEquals(39.7000, route[0].latitude)
+        assertEquals(-104.9000, route[0].longitude)
+        assertEquals(39.7200, route[1].latitude)
+        assertEquals(-104.9200, route[1].longitude)
+    }
+
     // ---- Helpers ----
 
     private fun makeSession(id: Long, date: LocalDate) = DriveSession(

@@ -136,6 +136,9 @@ dependencies {
     // PDF template filling
     implementation(libs.pdfbox.android)
 
+    // In-app map route preview
+    implementation(libs.maplibre.android)
+
     // ---- Unit Tests ----
     testImplementation(libs.junit5.api)
     testImplementation(libs.junit5.params)

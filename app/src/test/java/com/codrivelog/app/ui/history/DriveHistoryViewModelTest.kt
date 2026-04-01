@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DriveHistoryViewModelTest {
@@ -219,6 +220,37 @@ class DriveHistoryViewModelTest {
         assertEquals(-104.9000, route[0].longitude)
         assertEquals(39.7200, route[1].latitude)
         assertEquals(-104.9200, route[1].longitude)
+    }
+
+    @Test
+    fun `update keeps daytime edited session at zero night minutes`() = runTest {
+        val original = DriveSession(
+            id = 20L,
+            date = LocalDate.of(2025, 6, 10),
+            startTime = LocalDateTime.of(2025, 6, 10, 10, 50),
+            endTime = LocalDateTime.of(2025, 6, 10, 10, 51),
+            totalMinutes = 1,
+            nightMinutes = 0,
+            supervisorName = "Jane Doe",
+            supervisorInitials = "JD",
+            comments = null,
+            isManualEntry = false,
+        )
+        dao.insert(original)
+
+        viewModel.update(
+            session = original,
+            date = LocalDate.of(2025, 6, 10),
+            startTime = LocalTime.of(10, 15),
+            endTime = LocalTime.of(10, 51),
+            supervisorName = "Jane Doe",
+            supervisorInitials = "JD",
+            comments = "",
+        )
+
+        val updated = dao.getById(20L)
+        assertEquals(36, updated?.totalMinutes)
+        assertEquals(0, updated?.nightMinutes)
     }
 
     // ---- Helpers ----

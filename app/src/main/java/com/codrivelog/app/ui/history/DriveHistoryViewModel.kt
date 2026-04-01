@@ -20,6 +20,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.random.Random
 import javax.inject.Inject
@@ -85,9 +86,11 @@ class DriveHistoryViewModel @Inject constructor(
         if (!end.isAfter(start)) return
 
         val totalMinutes = Duration.between(start, end).toMinutes().toInt()
+        val startUtc = start.atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()
+        val endUtc = end.atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()
         val nightMinutes = NightMinutesCalculator.computeNightMinutesForSession(
-            start = start,
-            end = end,
+            start = startUtc,
+            end = endUtc,
             latitudeDeg = defaultLat,
             longitudeDeg = defaultLng,
         )

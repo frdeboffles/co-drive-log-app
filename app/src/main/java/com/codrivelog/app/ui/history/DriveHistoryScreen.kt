@@ -24,7 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -36,6 +36,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -110,6 +111,7 @@ fun DriveHistoryScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var editingSession by remember { mutableStateOf<DriveSession?>(null) }
+    var deletingSession by remember { mutableStateOf<DriveSession?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var mapSession by remember { mutableStateOf<DriveSession?>(null) }
@@ -120,7 +122,7 @@ fun DriveHistoryScreen(
                 title = { Text(stringResource(R.string.screen_drive_history)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
             )
@@ -130,7 +132,7 @@ fun DriveHistoryScreen(
             modifier = Modifier.padding(padding),
             sessions = uiState.sessions,
             sessionIdsWithRoute = uiState.sessionIdsWithRoute,
-            onDelete = viewModel::delete,
+            onDelete = { deletingSession = it },
             onEdit = { editingSession = it },
             onViewRoute = { session ->
                 scope.launch {
@@ -167,6 +169,29 @@ fun DriveHistoryScreen(
                     comments = comments,
                 )
                 editingSession = null
+            },
+        )
+    }
+
+    deletingSession?.let { session ->
+        AlertDialog(
+            onDismissRequest = { deletingSession = null },
+            title = { Text(stringResource(R.string.dialog_delete_route_title)) },
+            text = { Text(stringResource(R.string.dialog_delete_route_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.delete(session)
+                        deletingSession = null
+                    }
+                ) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingSession = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             },
         )
     }

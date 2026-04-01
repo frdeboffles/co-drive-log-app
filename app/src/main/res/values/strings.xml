@@ -44,9 +44,12 @@
     <string name="label_no_drives">No drives recorded yet</string>
     <string name="label_manual_entry_badge">Manual</string>
     <string name="cd_delete_drive">Delete drive</string>
+    <string name="action_delete">Delete</string>
     <string name="action_view_route">View Route</string>
     <string name="action_view_map">View Map</string>
     <string name="action_close">Close</string>
+    <string name="dialog_delete_route_title">Delete drive?</string>
+    <string name="dialog_delete_route_message">This will permanently remove this drive entry and its recorded route points.</string>
     <string name="error_no_route_for_session">No route points available for this session.</string>
     <string name="label_route_map_title">Route map · %1$s</string>
 

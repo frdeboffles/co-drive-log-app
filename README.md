@@ -122,6 +122,29 @@ cd ColoradoTeenDriverLog
 ./gradlew connectedDebugAndroidTest
 ```
 
+## GitHub Actions
+
+This repository includes two workflows:
+
+- `Android CI` (`.github/workflows/android-ci.yml`)
+  - Runs on every PR and push to `main`
+  - Builds debug APK, runs unit tests, and compiles release Kotlin sources
+
+- `Release APK` (`.github/workflows/release-apk.yml`)
+  - Runs when a GitHub Release is published
+  - Builds a signed release APK and attaches it to the release
+
+### Release signing secrets
+
+Configure these repository secrets before publishing a release:
+
+- `CDL_RELEASE_STORE_B64` — base64-encoded keystore file contents
+- `CDL_RELEASE_STORE_PASSWORD` — keystore password
+- `CDL_RELEASE_KEY_ALIAS` — key alias inside the keystore
+- `CDL_RELEASE_KEY_PASSWORD` — key password
+
+Note: local release builds still default to debug signing unless these env vars are provided.
+
 ## Sideloading to an Android Device
 
 1. Enable **Developer Options** on the device (Settings → About Phone → tap Build Number 7 times).

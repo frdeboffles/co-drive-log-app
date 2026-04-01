@@ -1,0 +1,55 @@
+name: Release APK
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-release-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Decode release keystore
+        env:
+          CDL_RELEASE_STORE_B64: ${{ secrets.CDL_RELEASE_STORE_B64 }}
+        run: |
+          if [ -z "$CDL_RELEASE_STORE_B64" ]; then
+            echo "Missing CDL_RELEASE_STORE_B64 secret"
+            exit 1
+          fi
+          echo "$CDL_RELEASE_STORE_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build signed release APK
+        env:
+          CDL_RELEASE_STORE_FILE: ${{ runner.temp }}/release.keystore
+          CDL_RELEASE_STORE_PASSWORD: ${{ secrets.CDL_RELEASE_STORE_PASSWORD }}
+          CDL_RELEASE_KEY_ALIAS: ${{ secrets.CDL_RELEASE_KEY_ALIAS }}
+          CDL_RELEASE_KEY_PASSWORD: ${{ secrets.CDL_RELEASE_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon :app:assembleRelease
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+
+      - name: Attach APK to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/app-release.apk

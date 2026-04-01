@@ -8,6 +8,15 @@ plugins {
     alias(libs.plugins.room)
 }
 
+val releaseStoreFile = System.getenv("CDL_RELEASE_STORE_FILE")
+val releaseStorePassword = System.getenv("CDL_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = System.getenv("CDL_RELEASE_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("CDL_RELEASE_KEY_PASSWORD")
+val hasReleaseSigning = !releaseStoreFile.isNullOrBlank() &&
+    !releaseStorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank()
+
 android {
     namespace = "com.codrivelog.app"
     compileSdk = 35
@@ -22,12 +31,27 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
-            // For local USB sideloads, sign release builds with the debug keystore
-            // so the APK is installable via `adb install` without extra key setup.
-            signingConfig = signingConfigs.getByName("debug")
+            // In CI (release workflow), use production signing when env vars are set.
+            // Locally, fall back to debug signing for easy sideload installs.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.TimeZone
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DriveHistoryViewModelTest {
@@ -36,9 +37,12 @@ class DriveHistoryViewModelTest {
     private lateinit var routeRepo: DriveRouteRepository
     private lateinit var routeDao: FakeDriveRoutePointDao
     private lateinit var viewModel: DriveHistoryViewModel
+    private lateinit var originalTimeZone: TimeZone
 
     @BeforeEach
     fun setUp() {
+        originalTimeZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/Denver"))
         Dispatchers.setMain(testDispatcher)
         dao       = FakeDriveSessionDao()
         repo      = DriveSessionRepository(dao)
@@ -51,6 +55,7 @@ class DriveHistoryViewModelTest {
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
+        TimeZone.setDefault(originalTimeZone)
     }
 
     // ---- Initial state ----

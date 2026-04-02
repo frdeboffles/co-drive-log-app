@@ -373,7 +373,7 @@ class DriveTimerService : Service() {
         internal const val TICK_INTERVAL_MS     = 1_000L
 
         /** How often the GPS cache is polled to update day/night status. */
-        internal const val LOCATION_POLL_INTERVAL_MS = 20_000L
+        internal const val LOCATION_POLL_INTERVAL_MS = 10_000L
 
         internal const val ROUTE_MAX_ACCURACY_METERS = 80f
         internal const val ROUTE_FALLBACK_MAX_ACCURACY_METERS = 120f

@@ -1,6 +1,6 @@
 [versions]
 # Android
-agp = "8.7.3"
+agp = "8.12.0"
 kotlin = "2.0.21"
 ksp = "2.0.21-1.0.27"
 pdfboxAndroid = "2.0.27.0"

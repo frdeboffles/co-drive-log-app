@@ -15,17 +15,19 @@ class DriveTimerServiceNightLogicTest {
     fun `denver winter is night before sunrise in UTC`() {
         val date = LocalDate.of(2025, 12, 21)
         val sunTimes = SunCalculator.calculate(denverLat, denverLng, date)
+        val previousDaySunTimes = SunCalculator.calculate(denverLat, denverLng, date.minusDays(1))
 
         val nowUtc = date.atTime(13, 0)
-        assertTrue(isNightUtc(nowUtc, sunTimes))
+        assertTrue(isNightUtc(nowUtc, sunTimes, previousDaySunTimes))
     }
 
     @Test
     fun `denver winter is day between sunrise and sunset in UTC`() {
         val date = LocalDate.of(2025, 12, 21)
         val sunTimes = SunCalculator.calculate(denverLat, denverLng, date)
+        val previousDaySunTimes = SunCalculator.calculate(denverLat, denverLng, date.minusDays(1))
 
         val nowUtc = date.atTime(18, 0)
-        assertFalse(isNightUtc(nowUtc, sunTimes))
+        assertFalse(isNightUtc(nowUtc, sunTimes, previousDaySunTimes))
     }
 }

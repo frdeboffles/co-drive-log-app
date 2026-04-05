@@ -255,9 +255,11 @@ class DriveTimerService : Service() {
                     lastLocation = fix
                     maybeRecordRoutePoint(fix, LocalDateTime.now(), force = false)
                     val nowUtc = LocalDateTime.now(ZoneOffset.UTC)
-                    val times = SunCalculator.calculate(fix.latitude, fix.longitude, nowUtc.toLocalDate())
+                    val date = nowUtc.toLocalDate()
+                    val times = SunCalculator.calculate(fix.latitude, fix.longitude, date)
+                    val previousDayTimes = SunCalculator.calculate(fix.latitude, fix.longitude, date.minusDays(1))
 
-                    isCurrentlyNight = isNightUtc(nowUtc, times)
+                    isCurrentlyNight = isNightUtc(nowUtc, times, previousDayTimes)
                 }
                 delay(LOCATION_POLL_INTERVAL_MS)
             }
@@ -437,15 +439,34 @@ private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Doubl
     return r * c
 }
 
-internal fun isNightUtc(nowUtc: LocalDateTime, sunTimes: SunCalculator.SunTimes): Boolean {
+internal fun isNightUtc(
+    nowUtc: LocalDateTime,
+    sunTimes: SunCalculator.SunTimes,
+    previousDaySunTimes: SunCalculator.SunTimes,
+): Boolean {
     val date = nowUtc.toLocalDate()
-    val sunrise = sunTimes.sunrise?.let { date.atTime(it) } ?: return true
+    val sunrise = sunTimes.sunrise?.let { date.atTime(it).minusHours(1) } ?: return true
+
     val sunsetLt = sunTimes.sunset ?: return false
     val sunriseLt = sunTimes.sunrise ?: return true
     val sunset = if (sunsetLt < sunriseLt) {
         date.plusDays(1).atTime(sunsetLt)
     } else {
         date.atTime(sunsetLt)
-    }
-    return nowUtc.isBefore(sunrise) || nowUtc.isEqual(sunset) || nowUtc.isAfter(sunset)
+    }.plusHours(1)
+
+    val previousSunset = previousDaySunTimes.sunset?.let { prevSunsetLt ->
+        val previousDate = date.minusDays(1)
+        val previousSunriseLt = previousDaySunTimes.sunrise
+        if (previousSunriseLt != null && prevSunsetLt < previousSunriseLt) {
+            previousDate.plusDays(1).atTime(prevSunsetLt)
+        } else {
+            previousDate.atTime(prevSunsetLt)
+        }
+    }?.plusHours(1)
+
+    val preSunriseStart = previousSunset ?: date.atStartOfDay()
+    val inPreSunriseWindow = !nowUtc.isBefore(preSunriseStart) && nowUtc.isBefore(sunrise)
+    val inPostSunsetWindow = !nowUtc.isBefore(sunset)
+    return inPreSunriseWindow || inPostSunsetWindow
 }

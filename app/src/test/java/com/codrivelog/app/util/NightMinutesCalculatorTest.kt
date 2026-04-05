@@ -21,8 +21,8 @@ import java.time.LocalTime
  * ### Key test scenarios
  * 1. Entirely daytime drive → 0 night minutes
  * 2. Entirely night-time drive → all minutes are night
- * 3. Drive crossing sunset (day → night transition)
- * 4. Drive crossing sunrise (night → day transition)
+ * 3. Drive crossing sunset+1h boundary (day → night transition)
+ * 4. Drive crossing sunrise-1h boundary (night → day transition)
  * 5. Drive that spans exactly sunrise and sunset (bookend night windows)
  * 6. Drive spanning midnight (multi-day calculation)
  * 7. Zero-duration drive → 0 night minutes
@@ -99,6 +99,7 @@ class NightMinutesCalculatorTest {
         val windows = NightMinutesCalculator.buildNightWindows(
             midnight     = midnight,
             nextMidnight = nextMidnight,
+            previousSunset = null,
             sunrise      = null,
             sunset       = null,
         )
@@ -112,6 +113,7 @@ class NightMinutesCalculatorTest {
         val windows = NightMinutesCalculator.buildNightWindows(
             midnight     = date.atStartOfDay(),
             nextMidnight = date.plusDays(1).atStartOfDay(),
+            previousSunset = null,
             sunrise      = date.atTime(LocalTime.of(2, 0)),
             sunset       = null,
         )
@@ -123,17 +125,17 @@ class NightMinutesCalculatorTest {
         val date         = LocalDate.of(2025, 12, 21)
         val midnight     = date.atStartOfDay()
         val nextMidnight = date.plusDays(1).atStartOfDay()
-        val sunrise      = date.atTime(LocalTime.of(14, 18))
-        val sunset       = date.atTime(LocalTime.of(23, 39))
+        val sunrise      = date.atTime(LocalTime.of(13, 18)) // sunrise-1h
+        val sunset       = date.plusDays(1).atTime(LocalTime.of(0, 39)) // sunset+1h wraps
         val windows      = NightMinutesCalculator.buildNightWindows(
             midnight     = midnight,
             nextMidnight = nextMidnight,
+            previousSunset = date.atTime(LocalTime.of(0, 39)),
             sunrise      = sunrise,
             sunset       = sunset,
         )
-        assertEquals(2, windows.size, "Normal day should have pre-sunrise and post-sunset windows")
-        assertEquals(midnight to sunrise, windows[0])
-        assertEquals(sunset   to nextMidnight, windows[1])
+        assertEquals(1, windows.size, "Adjusted winter UTC day has one night window")
+        assertEquals(date.atTime(LocalTime.of(0, 39)) to sunrise, windows[0])
     }
 
     // ---- computeNightMinutesForSession: zero-duration ----
@@ -165,7 +167,7 @@ class NightMinutesCalculatorTest {
     }
 
     // ---- Winter-solstice Denver: UTC sunrise ~14:18, sunset ~23:39 ----
-    // Night windows: [00:00, 14:18) and [23:39, 00:00 next day)
+    // Colorado-adjusted night windows: [00:39, 13:18) and [00:39 next day, ...)
 
     @Test
     fun `drive entirely during daytime has 0 night minutes (winter)`() {
@@ -190,13 +192,13 @@ class NightMinutesCalculatorTest {
             latitudeDeg  = LAT,
             longitudeDeg = LNG,
         )
-        // 01:00 → 14:00 = 780 minutes, all before sunrise
-        assertNear(780, result, "Pre-sunrise drive should be fully night")
+        // 01:00 → 14:00; adjusted sunrise boundary is ~13:18 and night starts ~00:39.
+        assertNear(738, result, "Only adjusted-night portion should count")
     }
 
     @Test
     fun `drive crossing sunrise accumulates only pre-sunrise portion (winter)`() {
-        // 13:00 → 16:00 UTC. Sunrise ≈ 14:18.  Night = 13:00→14:18 = 78 min.
+        // 13:00 → 16:00 UTC. Adjusted sunrise boundary ≈ 13:18. Night = 13:00→13:18 = 18 min.
         val start  = WINTER_DATE.atTime(13, 0)
         val end    = WINTER_DATE.atTime(16, 0)
         val result = NightMinutesCalculator.computeNightMinutesForSession(
@@ -205,12 +207,13 @@ class NightMinutesCalculatorTest {
             latitudeDeg  = LAT,
             longitudeDeg = LNG,
         )
-        assertNear(78, result, "Only pre-sunrise portion should be night")
+        assertNear(18, result, "Only adjusted pre-sunrise portion should be night")
     }
 
     @Test
     fun `drive crossing sunset accumulates only post-sunset portion (winter)`() {
-        // 23:00 → 00:30 next day.  Sunset ≈ 23:39. Night = 23:39→00:30 = 51 min.
+        // 23:00 → 00:30 next day. Adjusted sunset boundary ≈ 00:39 next day.
+        // Entire interval is before the night boundary.
         val start  = WINTER_DATE.atTime(23, 0)
         val end    = WINTER_DATE.plusDays(1).atTime(0, 30)
         val result = NightMinutesCalculator.computeNightMinutesForSession(
@@ -219,15 +222,13 @@ class NightMinutesCalculatorTest {
             latitudeDeg  = LAT,
             longitudeDeg = LNG,
         )
-        assertNear(51, result, "Only post-sunset portion should be night")
+        assertNear(0, result, "Before adjusted post-sunset boundary should be day")
     }
 
     @Test
     fun `drive spanning full night window (winter solstice)`() {
         // 23:40 UTC Dec 21 → 14:17 UTC Dec 22.
-        // Dec 21 post-sunset: 23:39→00:00 = 21 min (approx)
-        // Dec 22 pre-sunrise: 00:00→14:18 = 858 min (approx)
-        // Total ≈ 879 min
+        // Adjusted Dec 22 night window is roughly 00:39→13:18 (~759 min).
         val start = WINTER_DATE.atTime(23, 40)
         val end   = WINTER_DATE.plusDays(1).atTime(14, 17)
         val result = NightMinutesCalculator.computeNightMinutesForSession(
@@ -236,12 +237,11 @@ class NightMinutesCalculatorTest {
             latitudeDeg  = LAT,
             longitudeDeg = LNG,
         )
-        // Rough: (24*60 - 23*60 - 40) + (14*60 + 17) = 20 + 857 = 877 min + tolerance
-        assertNear(877, result, "Drive spanning full night should accumulate most minutes as night", tolerance = 5)
+        assertNear(759, result, "Drive spanning adjusted full night should accumulate night minutes", tolerance = 5)
     }
 
     // ---- Summer solstice Denver: UTC sunrise ≈ 11:31, sunset wraps to next day ≈ 02:29 UTC ----
-    // Night window: [00:00, 11:31) only (no post-sunset window within June 21 UTC)
+    // Colorado-adjusted UTC night window is approximately [03:29, 10:31)
 
     @Test
     fun `drive entirely during long summer day has 0 night minutes`() {
@@ -266,7 +266,7 @@ class NightMinutesCalculatorTest {
             latitudeDeg  = LAT,
             longitudeDeg = LNG,
         )
-        assertNear(600, result, "Pre-sunrise summer drive should be fully night")
+        assertNear(422, result, "Only adjusted-night portion should count in summer")
     }
 
     // ---- Helpers ----

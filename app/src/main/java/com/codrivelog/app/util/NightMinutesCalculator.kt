@@ -7,8 +7,9 @@ import java.time.LocalTime
 /**
  * Pure-function calculator that splits a drive interval into day and night minutes.
  *
- * "Night" is defined as the time before today's sunrise or after today's sunset
- * at the observer's location, using [SunCalculator] for the astronomical times.
+ * "Night" is defined per Colorado DR 2324 rules as the time before
+ * one hour before sunrise or after one hour after sunset at the observer's
+ * location, using [SunCalculator] for the astronomical times.
  *
  * ### Design
  * All inputs and outputs are plain value types — no Android framework dependencies —
@@ -18,10 +19,11 @@ import java.time.LocalTime
  * Given a half-open interval `[start, end)` and a reference date + location, the
  * function:
  * 1. Computes sunrise / sunset UTC times for that date.
- * 2. Clips the interval against the night windows:
- *    - pre-sunrise night:  `[midnight, sunrise)`
- *    - post-sunset night:  `[sunset, next-midnight)`
- * 3. Returns the total overlap in whole minutes (truncated, not rounded).
+ * 2. Applies a one-hour buffer to both solar events.
+ * 3. Clips the interval against the night windows:
+ *    - pre-sunrise night:  `[midnight, sunrise - 1h)`
+ *    - post-sunset night:  `[sunset + 1h, next-midnight)`
+ * 4. Returns the total overlap in whole minutes (truncated, not rounded).
  *
  * Drives that span midnight are handled by calling this function once per
  * calendar day via [computeNightMinutesForSession].
@@ -94,6 +96,7 @@ object NightMinutesCalculator {
         longitudeDeg:  Double,
     ): Long {
         val sunTimes = SunCalculator.calculate(latitudeDeg, longitudeDeg, date)
+        val previousDaySunTimes = SunCalculator.calculate(latitudeDeg, longitudeDeg, date.minusDays(1))
 
         // UTC times — align with the date to form LocalDateTime boundaries.
         // If sunrise/sunset is null (polar conditions) the whole interval is night/day.
@@ -110,12 +113,27 @@ object NightMinutesCalculator {
             }
         }
 
+        // Apply the Colorado DMV one-hour offsets.
+        val adjustedSunrise = sunriseTime?.minusHours(1)
+        val previousDaySunset = previousDaySunTimes.sunset?.let { prevSunsetLt ->
+            val previousDay = date.minusDays(1)
+            val previousSunriseLt = previousDaySunTimes.sunrise
+            if (previousSunriseLt != null && prevSunsetLt < previousSunriseLt) {
+                previousDay.plusDays(1).atTime(prevSunsetLt)
+            } else {
+                previousDay.atTime(prevSunsetLt)
+            }
+        }
+        val adjustedPreviousDaySunset = previousDaySunset?.plusHours(1)
+        val adjustedSunset = sunsetTime?.plusHours(1)
+
         // Build the list of night windows within [midnight, nextMidnight)
         val nightWindows: List<Pair<LocalDateTime, LocalDateTime>> = buildNightWindows(
             midnight     = midnight,
             nextMidnight = nextMidnight,
-            sunrise      = sunriseTime,
-            sunset       = sunsetTime,
+            previousSunset = adjustedPreviousDaySunset,
+            sunrise      = adjustedSunrise,
+            sunset       = adjustedSunset,
         )
 
         return nightWindows.sumOf { (wStart, wEnd) ->
@@ -126,10 +144,11 @@ object NightMinutesCalculator {
     /**
      * Constructs the night-time windows for a single calendar day.
      *
-     * Night = before sunrise + after sunset.
+     * Night = before (sunrise - 1 hour) + after (sunset + 1 hour).
      *
      * @param midnight      Midnight at the start of the day (LocalDateTime).
      * @param nextMidnight  Midnight at the start of the next day.
+     * @param previousSunset Previous day's sunset+1h, or `null` if unknown.
      * @param sunrise       Sunrise as a LocalDateTime on this day, or `null` (polar night →
      *                      entire day is night).
      * @param sunset        Sunset as a LocalDateTime (may be on next calendar day if UTC
@@ -139,6 +158,7 @@ object NightMinutesCalculator {
     internal fun buildNightWindows(
         midnight:     LocalDateTime,
         nextMidnight: LocalDateTime,
+        previousSunset: LocalDateTime?,
         sunrise:      LocalDateTime?,
         sunset:       LocalDateTime?,
     ): List<Pair<LocalDateTime, LocalDateTime>> = when {
@@ -156,15 +176,16 @@ object NightMinutesCalculator {
         }
         else -> buildList {
             // Pre-sunrise window: [midnight, sunrise)
-            if (sunrise.isAfter(midnight)) {
-                add(midnight to sunrise)
+            // But night may not start until one hour after the previous sunset.
+            val preSunriseStart = maxOf(previousSunset ?: midnight, midnight)
+            val preSunriseEnd = minOf(sunrise, nextMidnight)
+            if (preSunriseEnd.isAfter(preSunriseStart)) {
+                add(preSunriseStart to preSunriseEnd)
             }
             // Post-sunset window: [sunset, nextMidnight)
-            // If sunset has wrapped to the next day it still clips correctly
-            // because overlapSeconds handles that.
-            val effectiveNextMid = if (sunset.isAfter(nextMidnight)) sunset else nextMidnight
-            if (sunset.isBefore(effectiveNextMid)) {
-                add(sunset to effectiveNextMid)
+            val postSunsetStart = maxOf(sunset, midnight)
+            if (postSunsetStart.isBefore(nextMidnight)) {
+                add(postSunsetStart to nextMidnight)
             }
         }
     }

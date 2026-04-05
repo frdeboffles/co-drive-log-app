@@ -13,13 +13,13 @@ exports a printable log matching the official **DR 2324** form.
 | Requirement | Goal |
 |---|---|
 | Total supervised driving | 50 hours |
-| Night driving (after sunset) | 10 hours |
+| Night driving (1 hour after sunset to 1 hour before sunrise) | 10 hours |
 | Supervisor | Licensed adult 21+ |
 
 ## Features
 
 - Start/stop drive timer with a foreground service notification
-- Auto day/night detection via GPS + NOAA sunrise/sunset calculation (SunCalculator)
+- Auto night-hours detection via GPS + NOAA sunrise/sunset calculation with Colorado DMV offsets (1 hour after sunset to 1 hour before sunrise)
 - Manual night override toggle when GPS is unavailable
 - Midnight-crossing drives handled correctly
 - Manual retroactive drive entry with automatic night-minute calculation

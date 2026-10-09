@@ -15,19 +15,19 @@ This file is the authoritative baseline for AI agents working on this codebase.
 
 | Concern | Choice |
 |---|---|
-| Language | Kotlin 2.0.21 |
-| UI | Jetpack Compose + Material 3 (Compose BOM 2024.12.01) |
+| Language | Kotlin 2.4.21 |
+| UI | Jetpack Compose + Material 3 (Compose BOM 2026.09.00) |
 | Architecture | Single-module MVVM + Repository |
-| Database | Room 2.6.1 (SQLite, local only) |
-| DI | Hilt 2.52 |
-| Navigation | Compose Navigation 2.8.4 |
-| Async | Kotlin Coroutines + Flow 1.9.0 |
-| Build | Gradle 8.9, Kotlin DSL, Version Catalog (`gradle/libs.versions.toml`) |
-| Min / Target SDK | 34 / 35 (Android 14 / 15) |
+| Database | Room 2.8.5 (SQLite, local only) |
+| DI | Hilt 2.60.1 |
+| Navigation | Compose Navigation 2.10.2 |
+| Async | Kotlin Coroutines + Flow 1.11.0 |
+| Build | Gradle 9.8.1, AGP 9.4.1, Kotlin DSL, Version Catalog (`gradle/libs.versions.toml`) |
+| Min / Target / Compile SDK | 34 / 35 / 37 |
 | JVM target | 17 |
-| Unit testing | JUnit 5 + Turbine 1.2.0 + MockK 1.13.12 |
+| Unit testing | JUnit 6 + Turbine 1.2.1 + MockK 1.14.11 |
 | Instrumented testing | JUnit 4 + Espresso + Compose UI Test |
-| Coverage | Kover 0.8.3 (target >80% on business logic) |
+| Coverage | Kover 0.9.11 (target >80% on business logic) |
 | PDF export | Android `PdfDocument` API (planned, not yet implemented) |
 
 ---
@@ -201,7 +201,7 @@ DriveTimerService  →  DriveTimerRepository (MutableStateFlow)  →  DriveTimer
 ./gradlew assembleRelease         # ProGuard-minified
 
 # Test
-./gradlew testDebugUnitTest       # JVM unit tests (JUnit 5)
+./gradlew testDebugUnitTest       # JVM unit tests (JUnit 6)
 ./gradlew connectedDebugAndroidTest  # Instrumented (device/emulator required)
 
 # Coverage
@@ -212,7 +212,7 @@ DriveTimerService  →  DriveTimerRepository (MutableStateFlow)  →  DriveTimer
 
 ## Testing Conventions
 
-- **Unit tests** (`app/src/test/`) — JVM only, JUnit 5, no Android framework.
+- **Unit tests** (`app/src/test/`) — JVM only, JUnit 6, no Android framework.
   - Use `FakeDriveSessionDao` / `FakeSupervisorDao` (in-memory `MutableStateFlow`) instead of mocking DAOs.
   - Use MockK for ViewModels and Android `Context`.
   - Use `runTest` + `UnconfinedTestDispatcher` + Turbine for Flow assertions.

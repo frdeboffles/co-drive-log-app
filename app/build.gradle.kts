@@ -24,8 +24,8 @@ android {
         applicationId = "com.codrivelog.app"
         minSdk = 34
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.0.5"
+        versionCode = 7
+        versionName = "1.0.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -126,6 +126,9 @@ dependencies {
     implementation(project(":core"))
 
     // Core
+    // Coroutines BOM: AndroidX pulls an older coroutines core than kotlinx-coroutines-test
+    // needs, which breaks runTest in instrumented tests with NoSuchMethodError.
+    implementation(platform(libs.kotlinx.coroutines.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

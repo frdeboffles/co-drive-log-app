@@ -46,6 +46,36 @@ jobs:
           CDL_RELEASE_KEY_PASSWORD: ${{ secrets.CDL_RELEASE_KEY_PASSWORD }}
         run: ./gradlew --no-daemon :app:assembleRelease
 
+      # Devices that sideloaded a locally built APK have it signed with the
+      # developer's debug key. Re-sign with APK Signature Scheme v3 and the
+      # debug -> release lineage so this APK installs over those builds and
+      # keeps their data. v3 alone is enough because minSdk is 34.
+      - name: Re-sign APK with key rotation lineage
+        env:
+          CDL_RELEASE_STORE_FILE: ${{ runner.temp }}/release.keystore
+          CDL_RELEASE_STORE_PASSWORD: ${{ secrets.CDL_RELEASE_STORE_PASSWORD }}
+          CDL_RELEASE_KEY_ALIAS: ${{ secrets.CDL_RELEASE_KEY_ALIAS }}
+          CDL_RELEASE_KEY_PASSWORD: ${{ secrets.CDL_RELEASE_KEY_PASSWORD }}
+          DEBUG_CERT_SHA256: b58105bc2078cae9ad238cb62d18ca6859b2e2cfae481d4c2ed8bfcbc405ff71
+        run: |
+          set -euo pipefail
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}"
+          apksigner="$(ls -d "${sdk}"/build-tools/*/ | sort -V | tail -1)apksigner"
+          apk=app/build/outputs/apk/release/app-release.apk
+          "${apksigner}" sign \
+            --ks "${CDL_RELEASE_STORE_FILE}" \
+            --ks-key-alias "${CDL_RELEASE_KEY_ALIAS}" \
+            --ks-pass env:CDL_RELEASE_STORE_PASSWORD \
+            --key-pass env:CDL_RELEASE_KEY_PASSWORD \
+            --lineage signing/debug-to-release.lineage \
+            --v1-signing-enabled false \
+            --v2-signing-enabled false \
+            --v3-signing-enabled true \
+            --rotation-min-sdk-version 28 \
+            "${apk}"
+          "${apksigner}" verify --verbose --print-certs "${apk}"
+          "${apksigner}" lineage --in "${apk}" --print-certs | grep -q "${DEBUG_CERT_SHA256}"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:

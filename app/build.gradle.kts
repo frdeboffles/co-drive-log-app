@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kover)
@@ -24,8 +25,8 @@ android {
         applicationId = "com.codrivelog.app"
         minSdk = 34
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.6"
+        versionCode = 8
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -158,6 +159,9 @@ dependencies {
 
     // DataStore
     implementation(libs.datastore.preferences)
+
+    // Full database backup (JSON)
+    implementation(libs.kotlinx.serialization.json)
 
     // PDF template filling
     implementation(libs.pdfbox.android)

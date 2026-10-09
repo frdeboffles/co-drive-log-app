@@ -35,4 +35,6 @@ abstract class CoDriveLogDatabase : RoomDatabase() {
 
     /** DAO for per-drive route point operations. */
     abstract fun driveRoutePointDao(): DriveRoutePointDao
+
+    abstract fun backupDao(): BackupDao
 }

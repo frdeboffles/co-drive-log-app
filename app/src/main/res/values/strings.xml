@@ -89,6 +89,50 @@
     <string name="hint_record_drive_to_export">Record at least one drive to enable export.</string>
     <string name="button_export_csv">Export CSV</string>
     <string name="button_export_geojson">Export GeoJSON</string>
+
+    <!-- Full backup (export screen) -->
+    <string name="label_backup">Full backup</string>
+    <string name="desc_backup">Saves all drives, routes, supervisors and your student profile to one file in Downloads. Import a backup file to restore them, for example on a new phone.</string>
+    <string name="button_backup_export">Export backup</string>
+    <string name="button_backup_import">Import backup</string>
+    <string name="backup_working">Working…</string>
+    <string name="dialog_backup_import_title">Replace all data?</string>
+    <string name="dialog_backup_import_counts">%1$s: %2$s, %3$s, %4$s</string>
+    <plurals name="backup_count_drives">
+        <item quantity="one">%d drive</item>
+        <item quantity="other">%d drives</item>
+    </plurals>
+    <plurals name="backup_count_supervisors">
+        <item quantity="one">%d supervisor</item>
+        <item quantity="other">%d supervisors</item>
+    </plurals>
+    <plurals name="backup_count_route_points">
+        <item quantity="one">%d route point</item>
+        <item quantity="other">%d route points</item>
+    </plurals>
+    <string name="dialog_backup_import_now">Now in the app</string>
+    <string name="dialog_backup_import_file">In the file</string>
+    <string name="dialog_backup_import_file_info">The file was made on %1$s by app version %2$s.</string>
+    <string name="dialog_backup_import_warning">Importing deletes all drives, routes and supervisors in the app and replaces them with the data in the file.</string>
+    <string name="dialog_backup_import_profile_replaced">The student name and permit number are also replaced.</string>
+    <string name="dialog_backup_import_profile_kept">The file has no student profile, so the student name and permit number in the app are kept.</string>
+    <string name="dialog_backup_import_safety">A backup of the current data is saved to Downloads first.</string>
+    <string name="dialog_backup_import_no_safety">The app has no data yet, so no backup is made first.</string>
+    <string name="button_backup_import_confirm">Replace data</string>
+    <string name="dialog_backup_done_title">Backup</string>
+    <string name="dialog_backup_failed_title">Backup failed</string>
+    <string name="backup_export_done">Backup saved to Downloads as %1$s.</string>
+    <string name="backup_import_done">Import complete.</string>
+    <string name="backup_import_done_safety">Import complete. The previous data was saved to Downloads as %1$s.</string>
+    <string name="backup_error_read_failed">The file could not be read.</string>
+    <string name="backup_error_too_large">This file is too large to be a CO Drive Log backup.</string>
+    <string name="backup_error_not_a_backup">This file is not a CO Drive Log backup.</string>
+    <string name="backup_error_newer_format">This backup was made by a newer version of the app. Update the app, then import it again.</string>
+    <string name="backup_error_invalid_data">This backup file is damaged or incomplete. Nothing was changed.</string>
+    <string name="backup_error_write_failed">The backup could not be saved to Downloads.</string>
+    <string name="backup_error_safety_backup_failed">The current data could not be backed up, so the import was stopped. Nothing was changed.</string>
+    <string name="backup_error_drive_in_progress">A drive is being recorded. Stop the drive, then import again.</string>
+    <string name="backup_error_unexpected">Something went wrong. Check your drives, then try again. If an import was running, a backup of your previous data may be in Downloads.</string>
     <string name="label_total_sessions">Total sessions</string>
     <string name="label_total_hours_value">%1$.1f hrs total · %2$.1f hrs night</string>
 

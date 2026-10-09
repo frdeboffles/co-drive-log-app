@@ -26,6 +26,7 @@ exports a printable log matching the official **DR 2324** form.
 - Dashboard showing progress toward 50-hour total / 10-hour night goals
 - Export driving log as PDF matching DR 2324 column layout
 - CSV export for spreadsheet backup
+- Full backup: export all drives, routes, supervisors and the student profile to one JSON file, and import it to restore them (for example on a new phone). An import replaces all data, and first saves the current data to Downloads unless the app is empty
 - Multiple supervisor support (name + initials)
 - First-launch onboarding: student name + permit number + first supervisor
 - Dashboard edit for student profile (name + permit)
@@ -198,6 +199,7 @@ You can also transfer the APK file via USB/email and open it directly on the dev
 
 ```
 app/src/main/java/com/codrivelog/app/
+├── backup/         Full backup export/import (versioned JSON)
 ├── data/           Room DB, DAOs, models, repositories
 ├── export/         CSV + PDF export logic
 ├── location/       GPS location provider (Hilt)

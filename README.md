@@ -145,6 +145,20 @@ Configure these repository secrets before publishing a release:
 
 Note: local release builds still default to debug signing unless these env vars are provided.
 
+### Signing key rotation
+
+Devices that sideloaded a local build have the app signed with the developer's debug key. The release workflow re-signs the APK with APK Signature Scheme v3 and `signing/debug-to-release.lineage`, which proves that the debug key allows the release key to replace it. The release APK then installs over a local build and keeps its data. The lineage also grants the debug key the rollback capability, so a local build still installs over a release build.
+
+The lineage file holds only certificates and signatures, no private keys. To create it again, run this with both keystores at hand:
+
+```bash
+apksigner rotate --out signing/debug-to-release.lineage \
+  --old-signer --ks ~/.android/debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --set-rollback true \
+  --new-signer --ks release.keystore --ks-key-alias co-drive-log
+```
+
+If the debug key changes (new machine, deleted `~/.android/`), a new local build no longer installs over the existing app. Do not uninstall the app to fix this, because uninstalling deletes the drive log. Install the release APK instead, or restore the old debug keystore.
+
 ## Sideloading to an Android Device
 
 1. Enable **Developer Options** on the device (Settings → About Phone → tap Build Number 7 times).

@@ -1,10 +1,8 @@
 package com.codrivelog.app.export
 
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Environment
 import android.provider.MediaStore
 import com.codrivelog.app.data.repository.DriveRouteRepository
 import com.codrivelog.app.data.repository.DriveSessionRepository
@@ -178,7 +176,7 @@ class ExportManager @Inject constructor(
             }
 
     /**
-     * Insert an entry into [MediaStore.Downloads] and write content to it.
+     * Writes a file to Downloads through [DownloadsWriter].
      *
      * @param fileName  Display name of the file.
      * @param mimeType  MIME type string.
@@ -189,33 +187,7 @@ class ExportManager @Inject constructor(
         fileName: String,
         mimeType: String,
         write: (java.io.OutputStream) -> Unit,
-    ): Uri? {
-        val resolver = context.contentResolver
-
-        val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-            put(MediaStore.Downloads.MIME_TYPE, mimeType)
-            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-            put(MediaStore.Downloads.IS_PENDING, 1)
-        }
-
-        val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val uri = resolver.insert(collection, values) ?: return null
-
-        return try {
-            resolver.openOutputStream(uri)?.use { stream ->
-                write(stream)
-            }
-            values.clear()
-            values.put(MediaStore.Downloads.IS_PENDING, 0)
-            resolver.update(uri, values, null, null)
-            uri
-        } catch (e: Exception) {
-            // Clean up the dangling MediaStore entry on failure
-            resolver.delete(uri, null, null)
-            null
-        }
-    }
+    ): Uri? = DownloadsWriter.save(context, fileName, mimeType, write)
 
     /**
      * Fire an [Intent.ACTION_VIEW] for [uri] so the user can open the file

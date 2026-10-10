@@ -190,7 +190,9 @@ object BackupJson {
         formatVersion = FORMAT_VERSION,
         appVersion    = appVersion,
         createdAt     = createdAt.format(DATE_TIME),
-        nightRule     = NIGHT_RULE_SUNSET_TO_SUNRISE,
+        // Old-rule data (the backup taken before the 1.2.0 migration) is
+        // written like a 1.1.0 file, so an import reclassifies it.
+        nightRule     = if (legacyNightRule) null else NIGHT_RULE_SUNSET_TO_SUNRISE,
         profile       = profile?.let { ProfileDto(it.studentName, it.permitNumber) },
         supervisors   = data.supervisors.map { SupervisorDto(it.id, it.name, it.initials) },
         sessions      = data.sessions.map {

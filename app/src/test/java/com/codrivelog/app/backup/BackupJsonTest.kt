@@ -6,6 +6,7 @@ import com.codrivelog.app.data.model.DriveSession
 import com.codrivelog.app.data.model.NightSource
 import com.codrivelog.app.data.model.Supervisor
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -202,6 +203,16 @@ class BackupJsonTest {
 
         assertTrue(json.contains("\"nightRule\": \"${BackupJson.NIGHT_RULE_SUNSET_TO_SUNRISE}\""))
         assertEquals(false, readText(json).legacyNightRule)
+    }
+
+    @Test
+    fun `old-rule data is written without a night rule and reads back as old-rule data`() {
+        // The backup taken before the 1.2.0 migration must import like a 1.1.0 file.
+        val json = write(sampleBackup().copy(legacyNightRule = true))
+
+        assertTrue(json.contains("\"nightRule\": null"))
+        assertFalse(json.contains(BackupJson.NIGHT_RULE_SUNSET_TO_SUNRISE))
+        assertEquals(true, readText(json).legacyNightRule)
     }
 
     @Test

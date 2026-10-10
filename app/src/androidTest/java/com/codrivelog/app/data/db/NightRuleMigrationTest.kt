@@ -6,13 +6,18 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.codrivelog.app.data.model.DriveRoutePoint
+import com.codrivelog.app.backup.BackupJson
+import com.codrivelog.app.backup.DatabaseBackup
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.model.Supervisor
 import com.codrivelog.app.util.NightRuleRecalculation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -108,6 +113,42 @@ class NightRuleMigrationTest {
 
         assertEquals(Row(60, 60, "SUN", 39.7392, "America/Denver"), rows[1L])
         assertEquals(Row(60, 7, "UNKNOWN", null, null), rows[2L])
+    }
+
+    @Test
+    fun the_migration_backs_up_every_row_before_changing_it() {
+        helper.createDatabase(DB_NAME, 2).use { db ->
+            sessions.forEach { insert(db, it) }
+            points.forEach { insert(db, it) }
+            db.execSQL("INSERT INTO supervisors (id, name, initials) VALUES (7, 'Jane Doe', 'JD')")
+        }
+        var backup: DatabaseBackup? = null
+
+        helper.runMigrationsAndValidate(DB_NAME, 3, true, DatabaseMigrations.migration2To3 { backup = it })
+
+        val saved = backup!!
+        assertEquals(sessions, saved.data.sessions)
+        assertEquals(points, saved.data.routePoints)
+        assertEquals(listOf(Supervisor(7, "Jane Doe", "JD")), saved.data.supervisors)
+        assertTrue(saved.legacyNightRule)
+
+        // The file it writes can be read back by Import backup, as old-rule data.
+        val bytes = ByteArrayOutputStream().also { BackupJson.write(saved, it) }.toByteArray()
+        val reread = BackupJson.read { ByteArrayInputStream(bytes) }
+        assertEquals(sessions, reread.data.sessions)
+        assertTrue(reread.legacyNightRule)
+    }
+
+    @Test
+    fun a_failed_backup_does_not_stop_the_migration() {
+        helper.createDatabase(DB_NAME, 2).use { db -> insert(db, session(1, nightMinutes = 21, isManualEntry = true)) }
+
+        val db = helper.runMigrationsAndValidate(
+            DB_NAME, 3, true,
+            DatabaseMigrations.migration2To3 { throw IllegalStateException("Downloads unavailable") },
+        )
+
+        assertEquals(Row(60, 60, "SUN", 39.7392, "America/Denver"), rowsById(db)[1L])
     }
 
     @Test

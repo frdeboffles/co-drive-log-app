@@ -3,11 +3,16 @@ package com.codrivelog.app.data.db
 import android.util.Log
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.codrivelog.app.BuildConfig
+import com.codrivelog.app.backup.DatabaseBackup
+import com.codrivelog.app.data.model.DriveRoutePoint
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.model.Supervisor
 import com.codrivelog.app.util.NightRuleRecalculation
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 object DatabaseMigrations {
 
@@ -45,11 +50,83 @@ object DatabaseMigrations {
      * recalculated; the others keep their value (see [com.codrivelog.app.util.NightSourceClassifier]).
      * Room runs this once, in a transaction, before the app reads any data.
      */
-    val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+    val MIGRATION_2_3: Migration = migration2To3(saveBackup = null)
+
+    /**
+     * [MIGRATION_2_3], first handing every row, as stored before the
+     * migration, to [saveBackup]. The rows are marked as old-rule data, so
+     * the backup file imports like a 1.1.0 backup.
+     *
+     * A failed backup does not stop the migration: stopping would leave the
+     * database unopenable, and the migration deletes no rows.
+     */
+    fun migration2To3(saveBackup: ((DatabaseBackup) -> Unit)?): Migration = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
+            if (saveBackup != null) {
+                runCatching { saveBackup(readVersion2Backup(db)) }
+                    .onFailure { e -> Log.w(TAG, "Backup before the night rule migration failed", e) }
+            }
             addNightColumns(db)
             classifyNightMinutes(db, NightRuleRecalculation.candidateZones())
         }
+    }
+
+    /** Every row of a version 2 database, as a backup of old-rule data without a profile. */
+    internal fun readVersion2Backup(db: SupportSQLiteDatabase): DatabaseBackup {
+        val supervisors = db.query("SELECT id, name, initials FROM supervisors ORDER BY id").use { c ->
+            buildList { while (c.moveToNext()) add(Supervisor(c.getLong(0), c.getString(1), c.getString(2))) }
+        }
+        val sessions = db.query(
+            """
+            SELECT id, date, startTime, endTime, totalMinutes, nightMinutes,
+                   supervisorName, supervisorInitials, comments, isManualEntry
+            FROM drive_sessions ORDER BY id
+            """.trimIndent()
+        ).use { c ->
+            buildList {
+                while (c.moveToNext()) {
+                    add(
+                        DriveSession(
+                            id                 = c.getLong(0),
+                            date               = LocalDate.parse(c.getString(1)),
+                            startTime          = LocalDateTime.parse(c.getString(2)),
+                            endTime            = LocalDateTime.parse(c.getString(3)),
+                            totalMinutes       = c.getInt(4),
+                            nightMinutes       = c.getInt(5),
+                            supervisorName     = c.getString(6),
+                            supervisorInitials = c.getString(7),
+                            comments           = if (c.isNull(8)) null else c.getString(8),
+                            isManualEntry      = c.getInt(9) != 0,
+                        )
+                    )
+                }
+            }
+        }
+        val routePoints = db.query(
+            "SELECT id, sessionId, timestamp, latitude, longitude, accuracyMeters FROM drive_route_points ORDER BY id"
+        ).use { c ->
+            buildList {
+                while (c.moveToNext()) {
+                    add(
+                        DriveRoutePoint(
+                            id             = c.getLong(0),
+                            sessionId      = c.getLong(1),
+                            timestamp      = LocalDateTime.parse(c.getString(2)),
+                            latitude       = c.getDouble(3),
+                            longitude      = c.getDouble(4),
+                            accuracyMeters = c.getFloat(5),
+                        )
+                    )
+                }
+            }
+        }
+        return DatabaseBackup(
+            createdAt       = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS),
+            appVersion      = "before ${BuildConfig.VERSION_NAME}",
+            profile         = null,
+            data            = DatabaseSnapshot(supervisors, sessions, routePoints),
+            legacyNightRule = true,
+        )
     }
 
     internal fun addNightColumns(db: SupportSQLiteDatabase) {

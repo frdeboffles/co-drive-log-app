@@ -20,6 +20,9 @@ class FakeDriveRoutePointDao : DriveRoutePointDao {
     override fun getBySession(sessionId: Long): Flow<List<DriveRoutePoint>> =
         points.map { list -> list.filter { it.sessionId == sessionId }.sortedBy { it.timestamp } }
 
+    override suspend fun getLatestBySession(sessionId: Long): DriveRoutePoint? =
+        points.value.filter { it.sessionId == sessionId }.maxByOrNull { it.timestamp }
+
     override suspend fun countBySession(sessionId: Long): Int =
         points.value.count { it.sessionId == sessionId }
 

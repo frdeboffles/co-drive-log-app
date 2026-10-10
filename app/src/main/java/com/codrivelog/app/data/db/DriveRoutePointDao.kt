@@ -16,6 +16,9 @@ interface DriveRoutePointDao {
     @Query("SELECT * FROM drive_route_points WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     fun getBySession(sessionId: Long): Flow<List<DriveRoutePoint>>
 
+    @Query("SELECT * FROM drive_route_points WHERE sessionId = :sessionId ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLatestBySession(sessionId: Long): DriveRoutePoint?
+
     @Query("SELECT COUNT(*) FROM drive_route_points WHERE sessionId = :sessionId")
     suspend fun countBySession(sessionId: Long): Int
 

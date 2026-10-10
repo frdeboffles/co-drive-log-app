@@ -1,6 +1,7 @@
 package com.codrivelog.app.backup
 
 import com.codrivelog.app.data.db.DatabaseSnapshot
+import com.codrivelog.app.util.NightRuleRecalculation
 import java.time.LocalDateTime
 
 /**
@@ -12,12 +13,19 @@ import java.time.LocalDateTime
  *                      `null` when the file has none. An import then keeps
  *                      the profile stored in the app.
  * @property data       All rows of the three database tables.
+ * @property legacyNightRule `true` when the file was read and its night
+ *                      minutes still follow the old rule; [BackupManager.read]
+ *                      recalculates them and clears this.
+ * @property nightRecalculation What the import did with the night minutes of
+ *                      a legacy file with drives; `null` otherwise.
  */
 data class DatabaseBackup(
     val createdAt: LocalDateTime,
     val appVersion: String,
     val profile: BackupProfile?,
     val data: DatabaseSnapshot,
+    val legacyNightRule: Boolean = false,
+    val nightRecalculation: NightRuleRecalculation.Summary? = null,
 ) {
     fun summary() = BackupSummary(
         sessions    = data.sessions.size,

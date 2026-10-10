@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.codrivelog.app.data.model.Supervisor
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.model.NightSource
 import com.codrivelog.app.data.repository.DriveRouteRepository
 import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.data.repository.SupervisorRepository
-import com.codrivelog.app.util.NightMinutesCalculator
+import com.codrivelog.app.util.DriveMinutes
+import com.codrivelog.app.util.NightRuleRecalculation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,11 +18,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.time.ZoneOffset
 import kotlin.random.Random
 import javax.inject.Inject
@@ -39,9 +40,6 @@ class DriveHistoryViewModel @Inject constructor(
     private val supervisorRepository: SupervisorRepository,
     private val routeRepository: DriveRouteRepository,
 ) : ViewModel() {
-
-    private val defaultLat = 39.7392
-    private val defaultLng = -104.9903
 
     /** Full ordered list of all sessions (most-recent first). */
     val uiState: StateFlow<DriveHistoryUiState> = combine(
@@ -77,38 +75,97 @@ class DriveHistoryViewModel @Inject constructor(
         supervisorInitials: String,
         comments: String,
     ) {
-        val start = LocalDateTime.of(date, startTime)
-        val end = if (!endTime.isAfter(startTime)) {
-            LocalDateTime.of(date.plusDays(1), endTime)
-        } else {
-            LocalDateTime.of(date, endTime)
-        }
-        if (!end.isAfter(start)) return
+        // The picker works in whole minutes; drop any seconds a caller passes.
+        val startTime = startTime.truncatedTo(ChronoUnit.MINUTES)
+        val endTime = endTime.truncatedTo(ChronoUnit.MINUTES)
 
-        val totalMinutes = Duration.between(start, end).toMinutes().toInt()
-        val startUtc = start.atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()
-        val endUtc = end.atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()
-        val nightMinutes = NightMinutesCalculator.computeNightMinutesForSession(
-            start = startUtc,
-            end = endUtc,
-            latitudeDeg = defaultLat,
-            longitudeDeg = defaultLng,
-        )
+        // Compare what the picker shows: the date and two times of day, in
+        // whole minutes. Comparing rebuilt date-times instead would see a
+        // change for a drive under one minute, or one that ends at an earlier
+        // clock time across the fall-back hour, and rebuild its end on the
+        // next day. Unchanged times keep every stored time field.
+        val timesOfDayChanged = timesOfDayChanged(session, startTime, endTime)
+        if (date == session.date && !timesOfDayChanged) {
+            viewModelScope.launch {
+                repository.update(
+                    session.copy(
+                        supervisorName = supervisorName.trim(),
+                        supervisorInitials = supervisorInitials.trim().uppercase(),
+                        comments = comments.trim().ifBlank { null },
+                    )
+                )
+            }
+            return
+        }
+
+        val (start, end) = if (!timesOfDayChanged) {
+            // Only the date changed: move the drive and keep its seconds, so
+            // a drive under one minute stays one.
+            val days = ChronoUnit.DAYS.between(session.date, date)
+            session.startTime.plusDays(days) to session.endTime.plusDays(days)
+        } else {
+            DriveMinutes.typedInterval(date, startTime, endTime, NightRuleRecalculation.zoneOf(session.timeZone))
+        }
 
         viewModelScope.launch {
+            // Times that cannot be resolved are refused rather than saved
+            // with the old totals.
+            val retimed = retimed(session, date, start, end) ?: return@launch
             repository.update(
-                session.copy(
-                    date = date,
-                    startTime = start,
-                    endTime = end,
-                    totalMinutes = totalMinutes,
-                    nightMinutes = nightMinutes,
+                retimed.copy(
                     supervisorName = supervisorName.trim(),
                     supervisorInitials = supervisorInitials.trim().uppercase(),
                     comments = comments.trim().ifBlank { null },
                 )
             )
         }
+    }
+
+    private fun timesOfDayChanged(session: DriveSession, startTime: LocalTime, endTime: LocalTime): Boolean =
+        startTime != session.startTime.toLocalTime().truncatedTo(ChronoUnit.MINUTES) ||
+            endTime != session.endTime.toLocalTime().truncatedTo(ChronoUnit.MINUTES)
+
+    /**
+     * [session] moved to [date], [start] and [end], with total minutes and
+     * night fields from the same instants ([DriveMinutes]). Only called when
+     * the times changed.
+     *
+     * - [NightSource.MANUAL]: the manual switch value is kept, capped at the
+     *   new duration; it cannot be recalculated.
+     * - otherwise: recalculated at the stored location, else the drive's last
+     *   route point, else the Denver default, in the stored zone.
+     *
+     * Returns `null` when the times cannot be resolved; the edit is then refused.
+     */
+    private suspend fun retimed(
+        session: DriveSession,
+        date: LocalDate,
+        start: LocalDateTime,
+        end: LocalDateTime,
+    ): DriveSession? {
+        val zone = NightRuleRecalculation.zoneOf(session.timeZone)
+        val moved = session.copy(date = date, startTime = start, endTime = end)
+        if (session.nightSource == NightSource.MANUAL) {
+            val total = DriveMinutes.fromLocal(start, end, zone, location = null)?.total ?: return null
+            return moved.copy(totalMinutes = total, nightMinutes = session.nightMinutes.coerceAtMost(total))
+        }
+
+        val storedLocation = session.nightLatitude?.let { lat ->
+            session.nightLongitude?.let { lng -> NightRuleRecalculation.Location(lat, lng) }
+        }
+        val location = storedLocation
+            ?: routeRepository.getLatestBySession(session.id)
+                ?.let { NightRuleRecalculation.Location(it.latitude, it.longitude) }
+            ?: NightRuleRecalculation.DEFAULT_LOCATION
+        val minutes = DriveMinutes.fromLocal(start, end, zone, location) ?: return null
+        return moved.copy(
+            totalMinutes   = minutes.total,
+            nightMinutes   = minutes.night ?: session.nightMinutes,
+            nightSource    = NightSource.SUN,
+            nightLatitude  = location.latitude,
+            nightLongitude = location.longitude,
+            timeZone       = zone.id,
+        )
     }
 
     fun seedRandomEntries(count: Int = 100) {

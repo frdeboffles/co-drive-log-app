@@ -3,10 +3,12 @@ package com.codrivelog.app.ui.entry
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.model.NightSource
 import com.codrivelog.app.data.model.Supervisor
 import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.data.repository.SupervisorRepository
-import com.codrivelog.app.util.NightMinutesCalculator
+import com.codrivelog.app.util.DriveMinutes
+import com.codrivelog.app.util.NightRuleRecalculation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,12 +16,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.Duration
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import javax.inject.Inject
 
 /**
@@ -34,10 +33,6 @@ class ManualEntryViewModel @Inject constructor(
     private val driveRepo:      DriveSessionRepository,
     private val supervisorRepo: SupervisorRepository,
 ) : ViewModel() {
-
-    /** Default lat/lng used when no GPS fix is available: Denver, CO. */
-    private val defaultLat = 39.7392
-    private val defaultLng = -104.9903
 
     /** Available saved supervisors for the picker dropdown. */
     val supervisors: StateFlow<List<Supervisor>> = supervisorRepo
@@ -77,28 +72,17 @@ class ManualEntryViewModel @Inject constructor(
             return
         }
 
-        val startDt = LocalDateTime.of(date, startTime)
-        val endDt   = if (!endTime.isAfter(startTime)) {
-            // Drive crosses midnight
-            LocalDateTime.of(date.plusDays(1), endTime)
-        } else {
-            LocalDateTime.of(date, endTime)
-        }
-
-        if (!endDt.isAfter(startDt)) {
+        val zone = ZoneId.systemDefault()
+        // DriveMinutes decides what an end not after the start means: the
+        // next day, or the repeated fall-back hour.
+        val (startDt, endDt) = DriveMinutes.typedInterval(date, startTime, endTime, zone)
+        // Total and night from the same instants.
+        val minutes = DriveMinutes.fromLocal(startDt, endDt, zone, NightRuleRecalculation.DEFAULT_LOCATION) ?: run {
             _saveState.value = SaveState.ValidationError(Field.END_TIME)
             return
         }
-
-        val totalMinutes = Duration.between(startDt, endDt).toMinutes().toInt()
-        val startUtc = startDt.atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()
-        val endUtc = endDt.atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()
-        val nightMinutes = NightMinutesCalculator.computeNightMinutesForSession(
-            start        = startUtc,
-            end          = endUtc,
-            latitudeDeg  = defaultLat,
-            longitudeDeg = defaultLng,
-        )
+        val totalMinutes = minutes.total
+        val nightMinutes = minutes.night ?: 0
 
         _saveState.value = SaveState.Saving
         viewModelScope.launch {
@@ -113,6 +97,10 @@ class ManualEntryViewModel @Inject constructor(
                     supervisorInitials  = trimmedInitials,
                     comments            = comments.trim().ifBlank { null },
                     isManualEntry       = true,
+                    nightSource         = NightSource.SUN,
+                    nightLatitude       = NightRuleRecalculation.DEFAULT_LOCATION.latitude,
+                    nightLongitude      = NightRuleRecalculation.DEFAULT_LOCATION.longitude,
+                    timeZone            = zone.id,
                 )
             )
             _saveState.value = SaveState.Saved

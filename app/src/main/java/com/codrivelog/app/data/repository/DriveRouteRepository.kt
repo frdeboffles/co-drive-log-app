@@ -17,6 +17,8 @@ class DriveRouteRepository @Inject constructor(
 
     suspend fun countBySession(sessionId: Long): Int = dao.countBySession(sessionId)
 
+    suspend fun getLatestBySession(sessionId: Long): DriveRoutePoint? = dao.getLatestBySession(sessionId)
+
     fun getSessionIdsWithPoints(): Flow<Set<Long>> =
         dao.getSessionIdsWithPoints().map { list -> list.toSet() }
 

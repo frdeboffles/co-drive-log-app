@@ -1,5 +1,6 @@
 package com.codrivelog.app.data.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.time.LocalDate
@@ -16,12 +17,15 @@ import java.time.LocalDateTime
  * @property startTime           Date-and-time when the drive started.
  * @property endTime             Date-and-time when the drive ended.
  * @property totalMinutes        Total duration of the session in whole minutes.
- * @property nightMinutes        Minutes driven during night (after sunset / before sunrise).
+ * @property nightMinutes        Minutes driven during night (between sunset and sunrise).
  * @property supervisorName      Full name of the supervising adult.
  * @property supervisorInitials  Initials of the supervising adult for the printed log.
  * @property comments            Optional free-text notes; `null` when not provided.
  * @property isManualEntry       `true` when the entry was typed in manually (retroactive),
  *                               `false` when recorded by the live drive timer.
+ * @property nightSource         Where [nightMinutes] come from; see [NightSource].
+ * @property nightLatitude       Latitude used for a [NightSource.SUN] calculation.
+ * @property nightLongitude      Longitude used for a [NightSource.SUN] calculation.
  */
 @Entity(tableName = "drive_sessions")
 data class DriveSession(
@@ -36,4 +40,10 @@ data class DriveSession(
     val supervisorInitials: String,
     val comments: String? = null,
     val isManualEntry: Boolean = false,
+    @ColumnInfo(defaultValue = "UNKNOWN")
+    val nightSource: NightSource = NightSource.UNKNOWN,
+    val nightLatitude: Double? = null,
+    val nightLongitude: Double? = null,
+    /** Zone id the local [startTime]/[endTime] were recorded in, e.g. `America/Denver`; `null` before 1.2.0. */
+    val timeZone: String? = null,
 )

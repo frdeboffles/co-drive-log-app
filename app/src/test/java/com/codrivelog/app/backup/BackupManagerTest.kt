@@ -9,6 +9,7 @@ import com.codrivelog.app.data.model.Supervisor
 import com.codrivelog.app.onboarding.OnboardingRepository
 import com.codrivelog.app.service.DriveTimerRepository
 import com.codrivelog.app.service.TimerState
+import com.codrivelog.app.util.NightRuleRecalculation
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -31,6 +32,7 @@ import java.io.OutputStream
 import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -259,6 +261,66 @@ class BackupManagerTest {
         assertEquals(BackupError.NOT_A_BACKUP, e.error)
     }
 
+    @Test
+    fun `read recalculates night minutes of a backup made with the old rule`() = runTest {
+        val denverClock = Clock.fixed(clock.instant(), ZoneId.of("America/Denver"))
+        manager = BackupManager(dao, onboarding, timer, files, denverClock, UnconfinedTestDispatcher())
+        val uri = mockk<Uri>()
+        // A manual entry at 5-6 pm on 2025-12-21 (sunset ≈ 4:39 pm): 21 night
+        // minutes under the old one-hour buffer, 60 under sunset to sunrise.
+        val oldRuleDrive = winterEveningDrive(nightMinutes = 21)
+        files.inputs[uri] = bytesOf(backupOf(sessions = listOf(oldRuleDrive)))
+            .toString(Charsets.UTF_8)
+            .replace("\"nightRule\": \"${BackupJson.NIGHT_RULE_SUNSET_TO_SUNRISE}\",", "")
+            .toByteArray()
+
+        val backup = manager.read(uri)
+
+        assertEquals(false, backup.legacyNightRule, "the data now follows the current rule")
+        assertEquals(listOf(60), backup.data.sessions.map { it.nightMinutes })
+        assertEquals(NightRuleRecalculation.Summary(recalculated = 1, kept = 0), backup.nightRecalculation)
+    }
+
+    @Test
+    fun `an old backup without drives reports no recalculation`() = runTest {
+        // Review finding 4: no "made before sunset-to-sunrise" line for it.
+        val uri = mockk<Uri>()
+        files.inputs[uri] = bytesOf(backupOf(sessions = emptyList()))
+            .toString(Charsets.UTF_8)
+            .replace("\"nightRule\": \"${BackupJson.NIGHT_RULE_SUNSET_TO_SUNRISE}\",", "")
+            .toByteArray()
+
+        assertNull(manager.read(uri).nightRecalculation)
+    }
+
+    @Test
+    fun `read keeps night minutes it cannot attribute to the sun`() = runTest {
+        val denverClock = Clock.fixed(clock.instant(), ZoneId.of("America/Denver"))
+        manager = BackupManager(dao, onboarding, timer, files, denverClock, UnconfinedTestDispatcher())
+        val uri = mockk<Uri>()
+        // A timed drive without route points: its 45 minutes came from the switch.
+        val switchDrive = winterEveningDrive(nightMinutes = 45).copy(isManualEntry = false)
+        files.inputs[uri] = bytesOf(backupOf(sessions = listOf(switchDrive)))
+            .toString(Charsets.UTF_8)
+            .replace("\"nightRule\": \"${BackupJson.NIGHT_RULE_SUNSET_TO_SUNRISE}\",", "")
+            .toByteArray()
+
+        val backup = manager.read(uri)
+
+        assertEquals(listOf(45), backup.data.sessions.map { it.nightMinutes })
+        assertEquals(NightRuleRecalculation.Summary(recalculated = 0, kept = 1), backup.nightRecalculation)
+    }
+
+    @Test
+    fun `read keeps night minutes of a backup made with the current rule`() = runTest {
+        val denverClock = Clock.fixed(clock.instant(), ZoneId.of("America/Denver"))
+        manager = BackupManager(dao, onboarding, timer, files, denverClock, UnconfinedTestDispatcher())
+        val uri = mockk<Uri>()
+        files.inputs[uri] = bytesOf(backupOf(sessions = listOf(winterEveningDrive(nightMinutes = 33))))
+
+        assertEquals(listOf(33), manager.read(uri).data.sessions.map { it.nightMinutes })
+    }
+
     // ---- Helpers ----
 
     private fun setStoredProfile(name: String, permit: String) {
@@ -298,6 +360,18 @@ class BackupManagerTest {
         appVersion = "1.1.0",
         profile    = profile,
         data       = DatabaseSnapshot(emptyList(), sessions, emptyList<DriveRoutePoint>()),
+    )
+
+    private fun winterEveningDrive(nightMinutes: Int) = DriveSession(
+        id                 = 1,
+        date               = LocalDate.of(2025, 12, 21),
+        startTime          = LocalDateTime.of(2025, 12, 21, 17, 0),
+        endTime            = LocalDateTime.of(2025, 12, 21, 18, 0),
+        totalMinutes       = 60,
+        nightMinutes       = nightMinutes,
+        supervisorName     = "Jane Doe",
+        supervisorInitials = "JD",
+        isManualEntry      = true,
     )
 
     private fun session(id: Long) = DriveSession(

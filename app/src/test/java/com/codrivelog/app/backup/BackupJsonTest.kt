@@ -3,6 +3,7 @@ package com.codrivelog.app.backup
 import com.codrivelog.app.data.db.DatabaseSnapshot
 import com.codrivelog.app.data.model.DriveRoutePoint
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.model.NightSource
 import com.codrivelog.app.data.model.Supervisor
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -194,6 +195,89 @@ class BackupJsonTest {
         assertEquals(BackupError.TOO_LARGE, e.error)
         assertTrue(bytesRead <= BackupJson.MAX_FILE_BYTES + 64 * 1024)
     }
+
+    @Test
+    fun `written file records the night rule`() {
+        val json = write(sampleBackup())
+
+        assertTrue(json.contains("\"nightRule\": \"${BackupJson.NIGHT_RULE_SUNSET_TO_SUNRISE}\""))
+        assertEquals(false, readText(json).legacyNightRule)
+    }
+
+    @Test
+    fun `a file without a night rule is marked as using the old rule`() {
+        // Files from app 1.1.0 have no nightRule field.
+        val json = write(sampleBackup())
+            .replace("\"nightRule\": \"${BackupJson.NIGHT_RULE_SUNSET_TO_SUNRISE}\",", "")
+
+        assertEquals(true, readText(json).legacyNightRule)
+    }
+
+    @Test
+    fun `an unknown night rule is refused as a newer format`() {
+        val json = write(sampleBackup())
+            .replace("\"nightRule\": \"${BackupJson.NIGHT_RULE_SUNSET_TO_SUNRISE}\"", "\"nightRule\": \"civil-twilight\"")
+
+        assertError(BackupError.NEWER_FORMAT, json)
+    }
+
+    @Test
+    fun `an empty night rule is refused as invalid`() {
+        val json = write(sampleBackup())
+            .replace("\"nightRule\": \"${BackupJson.NIGHT_RULE_SUNSET_TO_SUNRISE}\"", "\"nightRule\": \"\"")
+
+        assertError(BackupError.INVALID_DATA, json)
+    }
+
+    @Test
+    fun `night source, location and zone round trip`() {
+        val backup = sampleBackup().let {
+            it.copy(data = it.data.copy(sessions = listOf(
+                session(3).copy(nightSource = NightSource.SUN, nightLatitude = 39.5, nightLongitude = -105.1, timeZone = "America/Denver"),
+                session(7).copy(nightSource = NightSource.MANUAL, timeZone = "America/Denver"),
+            ), routePoints = emptyList()))
+        }
+
+        assertEquals(backup, readText(write(backup)))
+    }
+
+    @Test
+    fun `an unknown night source is refused as a newer format`() {
+        val backup = sampleBackup().let { it.copy(data = it.data.copy(sessions = listOf(sunSession(3)), routePoints = emptyList())) }
+        val json = write(backup).replace("\"nightSource\": \"SUN\"", "\"nightSource\": \"TWILIGHT\"")
+
+        assertError(BackupError.NEWER_FORMAT, json)
+    }
+
+    @Test
+    fun `a night latitude out of range is refused`() {
+        assertError(BackupError.INVALID_DATA, write(withSession(sunSession(3).copy(nightLatitude = 95.0))))
+    }
+
+    @Test
+    fun `half a night location is refused`() {
+        assertError(BackupError.INVALID_DATA, write(withSession(sunSession(3).copy(nightLongitude = null))))
+    }
+
+    @Test
+    fun `a sun calculation without a location is refused`() {
+        assertError(BackupError.INVALID_DATA, write(withSession(sunSession(3).copy(nightLatitude = null, nightLongitude = null))))
+    }
+
+    @Test
+    fun `an unknown time zone is dropped, not refused`() {
+        // Review finding 3: real app data must always import; an edit then
+        // uses the device zone.
+        val restored = readText(write(withSession(sunSession(3).copy(timeZone = "Mars/Olympus_Mons"))))
+
+        assertNull(restored.data.sessions.single().timeZone)
+    }
+
+    private fun sunSession(id: Long) =
+        session(id).copy(nightSource = NightSource.SUN, nightLatitude = 39.5, nightLongitude = -105.1, timeZone = "America/Denver")
+
+    private fun withSession(session: DriveSession) =
+        sampleBackup().let { it.copy(data = it.data.copy(sessions = listOf(session), routePoints = emptyList())) }
 
     // ---- Helpers ----
 

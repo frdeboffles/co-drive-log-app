@@ -36,7 +36,7 @@ object DatabaseModule {
             CoDriveLogDatabase::class.java,
             "co_drive_log.db",
         )
-            .addMigrations(DatabaseMigrations.MIGRATION_1_2)
+            .addMigrations(DatabaseMigrations.MIGRATION_1_2, DatabaseMigrations.MIGRATION_2_3)
             .build()
 
     /**

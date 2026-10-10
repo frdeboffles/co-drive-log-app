@@ -99,6 +99,7 @@ import org.maplibre.geojson.Point
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import androidx.compose.foundation.shape.CircleShape
@@ -548,8 +549,9 @@ private fun EditDriveDialog(
     onSave: (LocalDate, LocalTime, LocalTime, String, String, String) -> Unit,
 ) {
     var selectedDate by remember(drive.id) { mutableStateOf(drive.date) }
-    var startTime by remember(drive.id) { mutableStateOf(drive.startTime.toLocalTime()) }
-    var endTime by remember(drive.id) { mutableStateOf(drive.endTime.toLocalTime()) }
+    // Whole minutes, as the picker shows them; timed drives store seconds.
+    var startTime by remember(drive.id) { mutableStateOf(drive.startTime.toLocalTime().truncatedTo(ChronoUnit.MINUTES)) }
+    var endTime by remember(drive.id) { mutableStateOf(drive.endTime.toLocalTime().truncatedTo(ChronoUnit.MINUTES)) }
     var supervisorName by remember(drive.id) { mutableStateOf(drive.supervisorName) }
     var supervisorInitials by remember(drive.id) { mutableStateOf(drive.supervisorInitials) }
     var comments by remember(drive.id) { mutableStateOf(drive.comments.orEmpty()) }

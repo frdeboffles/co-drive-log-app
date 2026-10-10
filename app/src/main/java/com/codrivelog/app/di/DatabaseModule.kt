@@ -2,6 +2,7 @@ package com.codrivelog.app.di
 
 import android.content.Context
 import androidx.room.Room
+import com.codrivelog.app.data.db.BackupDao
 import com.codrivelog.app.data.db.CoDriveLogDatabase
 import com.codrivelog.app.data.db.DatabaseMigrations
 import com.codrivelog.app.data.db.DriveRoutePointDao
@@ -59,4 +60,8 @@ object DatabaseModule {
     @Provides
     fun provideDriveRoutePointDao(db: CoDriveLogDatabase): DriveRoutePointDao =
         db.driveRoutePointDao()
+
+    @Provides
+    fun provideBackupDao(db: CoDriveLogDatabase): BackupDao =
+        db.backupDao()
 }

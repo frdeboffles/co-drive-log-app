@@ -185,7 +185,7 @@ class ExportManager @Inject constructor(
      * @param write     Lambda that receives the open [java.io.OutputStream].
      * @return The [Uri] of the new file, or `null` on failure.
      */
-    private fun saveToDownloads(
+    internal fun saveToDownloads(
         fileName: String,
         mimeType: String,
         write: (java.io.OutputStream) -> Unit,

@@ -3,7 +3,9 @@ package com.codrivelog.app.backup
 import com.codrivelog.app.data.db.DatabaseSnapshot
 import com.codrivelog.app.data.model.DriveRoutePoint
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.model.NightSource
 import com.codrivelog.app.data.model.Supervisor
+import com.codrivelog.app.util.NightRuleRecalculation
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -41,6 +43,15 @@ object BackupJson {
 
     /** Version of the file format written by this app version. */
     const val FORMAT_VERSION = 1
+
+    /**
+     * Value of the `nightRule` field: night minutes count from sunset to
+     * sunrise. Files without the field (app 1.1.0) used a one-hour buffer.
+     * An optional field, not a new format version, so 1.1.0 can still read
+     * newer files. A value this version does not know comes from a newer
+     * app and is refused.
+     */
+    const val NIGHT_RULE_SUNSET_TO_SUNRISE = "sunset-to-sunrise"
 
     /**
      * Largest file [read] accepts. About 200 hours of drives with a route
@@ -91,6 +102,11 @@ object BackupJson {
         }
 
         val dto = decode(open, BackupFileDto.serializer(), BackupError.INVALID_DATA)
+        when (dto.nightRule) {
+            null, NIGHT_RULE_SUNSET_TO_SUNRISE -> Unit
+            "" -> throw BackupException(BackupError.INVALID_DATA, "Empty nightRule")
+            else -> throw BackupException(BackupError.NEWER_FORMAT, "Unknown nightRule ${dto.nightRule}")
+        }
         val backup = try {
             dto.toBackup()
         } catch (e: DateTimeParseException) {
@@ -136,8 +152,22 @@ object BackupJson {
         checkIds("sessions", data.sessions.map { it.id })
         checkIds("routePoints", data.routePoints.map { it.id })
 
-        data.sessions.firstOrNull { it.totalMinutes < 0 || it.nightMinutes < 0 }
-            ?.let { invalid("Session ${it.id} has negative minutes") }
+        data.sessions.forEach { session ->
+            if (session.totalMinutes < 0 || session.nightMinutes < 0) {
+                invalid("Session ${session.id} has negative minutes")
+            }
+            // A bad location would count every minute as night at the next
+            // edit; half a location would silently fall back to Denver.
+            val lat = session.nightLatitude
+            val lng = session.nightLongitude
+            if ((lat == null) != (lng == null)) invalid("Session ${session.id} has half a night location")
+            if (lat != null && lng != null && (lat !in -90.0..90.0 || lng !in -180.0..180.0)) {
+                invalid("Session ${session.id} has a night location out of range")
+            }
+            if (session.nightSource == NightSource.SUN && lat == null) {
+                invalid("Session ${session.id} is a sun calculation without a location")
+            }
+        }
 
         val sessionIds = data.sessions.mapTo(HashSet()) { it.id }
         data.routePoints.forEach { point ->
@@ -160,6 +190,9 @@ object BackupJson {
         formatVersion = FORMAT_VERSION,
         appVersion    = appVersion,
         createdAt     = createdAt.format(DATE_TIME),
+        // Old-rule data (the backup taken before the 1.2.0 migration) is
+        // written like a 1.1.0 file, so an import reclassifies it.
+        nightRule     = if (legacyNightRule) null else NIGHT_RULE_SUNSET_TO_SUNRISE,
         profile       = profile?.let { ProfileDto(it.studentName, it.permitNumber) },
         supervisors   = data.supervisors.map { SupervisorDto(it.id, it.name, it.initials) },
         sessions      = data.sessions.map {
@@ -174,6 +207,10 @@ object BackupJson {
                 supervisorInitials = it.supervisorInitials,
                 comments           = it.comments,
                 isManualEntry      = it.isManualEntry,
+                nightSource        = it.nightSource.name,
+                nightLatitude      = it.nightLatitude,
+                nightLongitude     = it.nightLongitude,
+                timeZone           = it.timeZone,
             )
         },
         routePoints   = data.routePoints.map {
@@ -192,6 +229,7 @@ object BackupJson {
         createdAt  = LocalDateTime.parse(createdAt, DATE_TIME),
         appVersion = appVersion,
         profile    = profile?.let { BackupProfile(it.studentName, it.permitNumber) },
+        legacyNightRule = nightRule == null,
         data       = DatabaseSnapshot(
             supervisors = supervisors.map { Supervisor(it.id, it.name, it.initials) },
             sessions    = sessions.map {
@@ -206,6 +244,13 @@ object BackupJson {
                     supervisorInitials = it.supervisorInitials,
                     comments           = it.comments,
                     isManualEntry      = it.isManualEntry,
+                    nightSource        = it.nightSource?.let(::parseNightSource) ?: NightSource.UNKNOWN,
+                    nightLatitude      = it.nightLatitude,
+                    nightLongitude     = it.nightLongitude,
+                    // A zone this phone's time-zone data does not know is
+                    // dropped, not refused: real app data must always import,
+                    // and an edit then uses Colorado (NightRuleRecalculation.zoneOf).
+                    timeZone           = NightRuleRecalculation.parseZone(it.timeZone)?.id,
                 )
             },
             routePoints = routePoints.map {
@@ -257,6 +302,16 @@ private class SizeLimitedInputStream(
     }
 }
 
+private fun parseNightSource(value: String): NightSource =
+    NightSource.entries.firstOrNull { it.name == value }
+        ?: throw if (value.isBlank()) {
+            BackupException(BackupError.INVALID_DATA, "Empty nightSource")
+        } else {
+            // Like an unknown nightRule: a value this version does not know
+            // comes from a newer app.
+            BackupException(BackupError.NEWER_FORMAT, "Unknown nightSource $value")
+        }
+
 // ---- File format, version 1 ----
 
 /** First pass: only the fields that decide whether the file can be read at all. */
@@ -272,6 +327,7 @@ private data class BackupFileDto(
     val formatVersion: Int,
     val appVersion: String,
     val createdAt: String,
+    val nightRule: String? = null,
     val profile: ProfileDto? = null,
     val supervisors: List<SupervisorDto> = emptyList(),
     val sessions: List<SessionDto> = emptyList(),
@@ -303,6 +359,11 @@ private data class SessionDto(
     val supervisorInitials: String,
     val comments: String? = null,
     val isManualEntry: Boolean = false,
+    // Since nightRule "sunset-to-sunrise" (app 1.2.0).
+    val nightSource: String? = null,
+    val nightLatitude: Double? = null,
+    val nightLongitude: Double? = null,
+    val timeZone: String? = null,
 )
 
 @Serializable

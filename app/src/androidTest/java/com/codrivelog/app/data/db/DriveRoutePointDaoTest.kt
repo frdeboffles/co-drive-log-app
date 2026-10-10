@@ -147,4 +147,25 @@ class DriveRoutePointDaoTest {
         assertTrue(ids.contains(sessionA))
         assertTrue(!ids.contains(sessionB))
     }
+
+    @Test
+    fun getLatestBySession_returns_the_point_with_the_latest_timestamp() = runTest {
+        val sessionId = insertSession()
+        listOf(10, 30, 20).forEach { minute ->
+            routeDao.insert(
+                DriveRoutePoint(
+                    sessionId = sessionId,
+                    timestamp = LocalDateTime.of(2026, 3, 30, 10, minute),
+                    latitude = 39.0 + minute / 100.0,
+                    longitude = -104.9903,
+                    accuracyMeters = 10f,
+                )
+            )
+        }
+
+        val latest = routeDao.getLatestBySession(sessionId)
+
+        assertEquals(LocalDateTime.of(2026, 3, 30, 10, 30), latest?.timestamp)
+        assertEquals(null, routeDao.getLatestBySession(sessionId + 1))
+    }
 }

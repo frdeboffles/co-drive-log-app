@@ -21,7 +21,7 @@ import com.codrivelog.app.data.model.Supervisor
  */
 @Database(
     entities = [DriveSession::class, Supervisor::class, DriveRoutePoint::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(DateTimeConverters::class)

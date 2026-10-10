@@ -2,14 +2,17 @@ package com.codrivelog.app.util
 
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 
 /**
  * Pure-function calculator that splits a drive interval into day and night minutes.
  *
- * "Night" is defined per Colorado DR 2324 rules as the time before
- * one hour before sunrise or after one hour after sunset at the observer's
- * location, using [SunCalculator] for the astronomical times.
+ * "Night" is the time between sunset and sunrise at the observer's location,
+ * with no buffer, using [SunCalculator] for the astronomical times. No
+ * Colorado source (DR 2324, CDOT, DMV) defines night for the 10 required
+ * night hours; sunset to sunrise matches the Colorado headlight rule.
+ *
+ * [nightWindowsUtc] is the only place the rule is defined: the stored night
+ * minutes and the live day/night state of the timer both use it.
  *
  * ### Design
  * All inputs and outputs are plain value types — no Android framework dependencies —
@@ -18,17 +21,31 @@ import java.time.LocalTime
  * ### Algorithm
  * Given a half-open interval `[start, end)` and a reference date + location, the
  * function:
- * 1. Computes sunrise / sunset UTC times for that date.
- * 2. Applies a one-hour buffer to both solar events.
- * 3. Clips the interval against the night windows:
- *    - pre-sunrise night:  `[midnight, sunrise - 1h)`
- *    - post-sunset night:  `[sunset + 1h, next-midnight)`
- * 4. Returns the total overlap in whole minutes (truncated, not rounded).
+ * 1. Computes sunrise / sunset UTC times for that date and the day before.
+ * 2. Clips the interval against the night windows:
+ *    - pre-sunrise night:  `[previous sunset, sunrise)`, clipped to the day
+ *    - post-sunset night:  `[sunset, next-midnight)`
+ * 3. Returns the total overlap in whole minutes (truncated, not rounded).
  *
  * Drives that span midnight are handled by calling this function once per
  * calendar day via [computeNightMinutesForSession].
  */
 object NightMinutesCalculator {
+
+    /**
+     * A night rule: the night windows of one UTC calendar day, from that
+     * day's and the previous day's sun times.
+     */
+    fun interface NightRule {
+        fun windows(
+            date: LocalDate,
+            sunTimes: SunCalculator.SunTimes,
+            previousDaySunTimes: SunCalculator.SunTimes,
+        ): List<Pair<LocalDateTime, LocalDateTime>>
+    }
+
+    /** The current rule: sunset to sunrise, no buffer. */
+    val CURRENT_RULE = NightRule(::nightWindowsUtc)
 
     /**
      * Computes the number of night minutes for a session that may span
@@ -49,6 +66,19 @@ object NightMinutesCalculator {
         end: LocalDateTime,
         latitudeDeg: Double,
         longitudeDeg: Double,
+    ): Int = computeNightMinutes(start, end, latitudeDeg, longitudeDeg, CURRENT_RULE)
+
+    /**
+     * Same as [computeNightMinutesForSession] with any [rule]. Lets
+     * [LegacyNightRules] reproduce values stored by earlier app versions
+     * with the exact same day split and overlap code.
+     */
+    internal fun computeNightMinutes(
+        start: LocalDateTime,
+        end: LocalDateTime,
+        latitudeDeg: Double,
+        longitudeDeg: Double,
+        rule: NightRule,
     ): Int {
         require(!end.isBefore(start)) { "end must not be before start" }
 
@@ -68,6 +98,7 @@ object NightMinutesCalculator {
                 date          = dayStart,
                 latitudeDeg   = latitudeDeg,
                 longitudeDeg  = longitudeDeg,
+                rule          = rule,
             )
             dayStart = dayStart.plusDays(1)
         }
@@ -86,6 +117,7 @@ object NightMinutesCalculator {
      * @param date           The calendar date for sunrise/sunset lookup.
      * @param latitudeDeg    Observer latitude.
      * @param longitudeDeg   Observer longitude.
+     * @param rule           Night rule; the current rule unless reproducing an old value.
      * @return               Night seconds as a non-negative long.
      */
     internal fun nightSecondsInDay(
@@ -94,46 +126,12 @@ object NightMinutesCalculator {
         date:          LocalDate,
         latitudeDeg:   Double,
         longitudeDeg:  Double,
+        rule:          NightRule = CURRENT_RULE,
     ): Long {
-        val sunTimes = SunCalculator.calculate(latitudeDeg, longitudeDeg, date)
-        val previousDaySunTimes = SunCalculator.calculate(latitudeDeg, longitudeDeg, date.minusDays(1))
-
-        // UTC times — align with the date to form LocalDateTime boundaries.
-        // If sunrise/sunset is null (polar conditions) the whole interval is night/day.
-        val midnight  = date.atStartOfDay()
-        val nextMidnight = date.plusDays(1).atStartOfDay()
-
-        val sunriseTime: LocalDateTime? = sunTimes.sunrise?.let { date.atTime(it) }
-        val sunsetTime:  LocalDateTime? = sunTimes.sunset?.let  { it ->
-            // Sunset UTC may wrap past midnight → put it on the next calendar day
-            if (it < (sunrises(sunTimes) ?: LocalTime.MIDNIGHT)) {
-                date.plusDays(1).atTime(it)
-            } else {
-                date.atTime(it)
-            }
-        }
-
-        // Apply the Colorado DMV one-hour offsets.
-        val adjustedSunrise = sunriseTime?.minusHours(1)
-        val previousDaySunset = previousDaySunTimes.sunset?.let { prevSunsetLt ->
-            val previousDay = date.minusDays(1)
-            val previousSunriseLt = previousDaySunTimes.sunrise
-            if (previousSunriseLt != null && prevSunsetLt < previousSunriseLt) {
-                previousDay.plusDays(1).atTime(prevSunsetLt)
-            } else {
-                previousDay.atTime(prevSunsetLt)
-            }
-        }
-        val adjustedPreviousDaySunset = previousDaySunset?.plusHours(1)
-        val adjustedSunset = sunsetTime?.plusHours(1)
-
-        // Build the list of night windows within [midnight, nextMidnight)
-        val nightWindows: List<Pair<LocalDateTime, LocalDateTime>> = buildNightWindows(
-            midnight     = midnight,
-            nextMidnight = nextMidnight,
-            previousSunset = adjustedPreviousDaySunset,
-            sunrise      = adjustedSunrise,
-            sunset       = adjustedSunset,
+        val nightWindows = rule.windows(
+            date,
+            SunCalculator.calculate(latitudeDeg, longitudeDeg, date),
+            SunCalculator.calculate(latitudeDeg, longitudeDeg, date.minusDays(1)),
         )
 
         return nightWindows.sumOf { (wStart, wEnd) ->
@@ -142,13 +140,58 @@ object NightMinutesCalculator {
     }
 
     /**
+     * Night windows of one UTC calendar day, from that day's and the
+     * previous day's sun times. This is the night rule.
+     *
+     * Sun times are UTC, so in Colorado the evening sunset falls after UTC
+     * midnight. The previous day's sunset therefore starts the night on this
+     * UTC day, not midnight.
+     *
+     * @param date                UTC calendar date.
+     * @param sunTimes            Sun times (UTC) for [date].
+     * @param previousDaySunTimes Sun times (UTC) for the day before [date].
+     */
+    fun nightWindowsUtc(
+        date: LocalDate,
+        sunTimes: SunCalculator.SunTimes,
+        previousDaySunTimes: SunCalculator.SunTimes,
+    ): List<Pair<LocalDateTime, LocalDateTime>> =
+        buildNightWindows(
+            midnight       = date.atStartOfDay(),
+            nextMidnight   = date.plusDays(1).atStartOfDay(),
+            previousSunset = sunsetDateTime(date.minusDays(1), previousDaySunTimes),
+            sunrise        = sunTimes.sunrise?.let { date.atTime(it) },
+            sunset         = sunsetDateTime(date, sunTimes),
+        )
+
+    /** `true` when [instantUtc] falls in a night window of its UTC day. */
+    fun isNightUtc(
+        instantUtc: LocalDateTime,
+        sunTimes: SunCalculator.SunTimes,
+        previousDaySunTimes: SunCalculator.SunTimes,
+    ): Boolean =
+        nightWindowsUtc(instantUtc.toLocalDate(), sunTimes, previousDaySunTimes)
+            .any { (start, end) -> !instantUtc.isBefore(start) && instantUtc.isBefore(end) }
+
+    /**
+     * Sunset of [date] as a date-time. A UTC sunset earlier in the day than
+     * sunrise belongs to the evening of [date], so it moves to the next day.
+     */
+    internal fun sunsetDateTime(date: LocalDate, sunTimes: SunCalculator.SunTimes): LocalDateTime? {
+        val sunset = sunTimes.sunset ?: return null
+        val sunrise = sunTimes.sunrise
+        return if (sunrise != null && sunset < sunrise) date.plusDays(1).atTime(sunset)
+               else date.atTime(sunset)
+    }
+
+    /**
      * Constructs the night-time windows for a single calendar day.
      *
-     * Night = before (sunrise - 1 hour) + after (sunset + 1 hour).
+     * Night = from the previous sunset to sunrise, and from sunset on.
      *
      * @param midnight      Midnight at the start of the day (LocalDateTime).
      * @param nextMidnight  Midnight at the start of the next day.
-     * @param previousSunset Previous day's sunset+1h, or `null` if unknown.
+     * @param previousSunset Previous day's sunset, or `null` if unknown.
      * @param sunrise       Sunrise as a LocalDateTime on this day, or `null` (polar night →
      *                      entire day is night).
      * @param sunset        Sunset as a LocalDateTime (may be on next calendar day if UTC
@@ -175,8 +218,7 @@ object NightMinutesCalculator {
             emptyList()
         }
         else -> buildList {
-            // Pre-sunrise window: [midnight, sunrise)
-            // But night may not start until one hour after the previous sunset.
+            // Pre-sunrise window: [previous sunset, sunrise), clipped to the day.
             val preSunriseStart = maxOf(previousSunset ?: midnight, midnight)
             val preSunriseEnd = minOf(sunrise, nextMidnight)
             if (preSunriseEnd.isAfter(preSunriseStart)) {
@@ -206,7 +248,4 @@ object NightMinutesCalculator {
             0L
         }
     }
-
-    /** Helper to extract the sunrise LocalTime from SunTimes for sunset-wrapping logic. */
-    private fun sunrises(sunTimes: SunCalculator.SunTimes): LocalTime? = sunTimes.sunrise
 }

@@ -2,17 +2,23 @@ package com.codrivelog.app.di
 
 import android.content.Context
 import androidx.room.Room
+import com.codrivelog.app.backup.BackupJson
+import com.codrivelog.app.backup.DatabaseBackup
+import com.codrivelog.app.backup.MediaStoreBackupFileStore
 import com.codrivelog.app.data.db.BackupDao
 import com.codrivelog.app.data.db.CoDriveLogDatabase
 import com.codrivelog.app.data.db.DatabaseMigrations
 import com.codrivelog.app.data.db.DriveRoutePointDao
 import com.codrivelog.app.data.db.DriveSessionDao
 import com.codrivelog.app.data.db.SupervisorDao
+import com.codrivelog.app.export.DownloadsWriter
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import javax.inject.Singleton
 
 /**
@@ -36,8 +42,24 @@ object DatabaseModule {
             CoDriveLogDatabase::class.java,
             "co_drive_log.db",
         )
-            .addMigrations(DatabaseMigrations.MIGRATION_1_2)
+            .addMigrations(
+                DatabaseMigrations.MIGRATION_1_2,
+                DatabaseMigrations.migration2To3 { backup -> saveBackupBeforeUpdate(context, backup) },
+            )
             .build()
+
+    /**
+     * Saves the data as it was before the 1.2.0 migration to Downloads, in
+     * the Export backup format, so Import backup can restore it.
+     */
+    private fun saveBackupBeforeUpdate(context: Context, backup: DatabaseBackup) {
+        val fileName = "CoDriveLog_backup_before_update_${
+            LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+        }.json"
+        DownloadsWriter.save(context, fileName, MediaStoreBackupFileStore.MIME_TYPE) { stream ->
+            BackupJson.write(backup, stream)
+        } ?: error("Could not write $fileName")
+    }
 
     /**
      * Provides [DriveSessionDao] sourced from the singleton database.

@@ -499,12 +499,13 @@ private fun BackupDialogs(
             title = { Text(stringResource(R.string.dialog_backup_import_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Whole sentences, one per Text: translators can reword each.
+                    Text(stringResource(R.string.dialog_backup_import_warning))
                     Text(
-                        stringResource(R.string.dialog_backup_import_warning) + " " +
-                            stringResource(
-                                if (state.incoming.profile != null) R.string.dialog_backup_import_profile_replaced
-                                else R.string.dialog_backup_import_profile_kept,
-                            ),
+                        stringResource(
+                            if (state.incoming.profile != null) R.string.dialog_backup_import_profile_replaced
+                            else R.string.dialog_backup_import_profile_kept,
+                        ),
                     )
                     Text(backupCountsText(R.string.dialog_backup_import_now, state.current))
                     Text(backupCountsText(R.string.dialog_backup_import_file, state.incoming))
@@ -516,6 +517,24 @@ private fun BackupDialogs(
                         ),
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    state.nightRecalculation?.let { night ->
+                        Text(
+                            stringResource(R.string.dialog_backup_import_night_recalculated),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (night.recalculated > 0) {
+                            Text(
+                                pluralStringResource(R.plurals.backup_night_recalculated_count, night.recalculated, night.recalculated),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        if (night.kept > 0) {
+                            Text(
+                                pluralStringResource(R.plurals.backup_night_kept_count, night.kept, night.kept),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                     Text(
                         stringResource(
                             if (state.current.hasData) R.string.dialog_backup_import_safety

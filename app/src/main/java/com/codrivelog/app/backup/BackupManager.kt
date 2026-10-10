@@ -7,6 +7,7 @@ import com.codrivelog.app.data.db.DatabaseSnapshot
 import com.codrivelog.app.onboarding.OnboardingRepository
 import com.codrivelog.app.service.DriveTimerRepository
 import com.codrivelog.app.service.TimerState
+import com.codrivelog.app.util.NightRuleRecalculation
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -80,13 +81,17 @@ class BackupManager internal constructor(
     /**
      * Reads and validates the backup file at [uri]. Changes nothing.
      *
+     * A file made before the sunset-to-sunrise night rule comes back with its
+     * night minutes already recalculated, so the import stores current values.
+     *
      * @throws BackupException when the file cannot be read or is not a valid backup.
      */
     suspend fun read(uri: Uri): DatabaseBackup = withContext(ioDispatcher) {
         try {
-            BackupJson.read {
+            val backup = BackupJson.read {
                 fileStore.openInput(uri) ?: throw IOException("Cannot open $uri")
             }
+            if (backup.legacyNightRule) withCurrentNightRule(backup) else backup
         } catch (e: IOException) {
             throw BackupException(BackupError.READ_FAILED, "Cannot read $uri", e)
         } catch (e: SecurityException) {
@@ -133,6 +138,24 @@ class BackupManager internal constructor(
             }
             RestoreResult(safetyBackupFileName)
         }
+
+    private fun withCurrentNightRule(backup: DatabaseBackup): DatabaseBackup {
+        // The drives were recorded where the old app ran, not necessarily in
+        // this phone's zone: try Colorado first, then this phone's zone.
+        val zones = NightRuleRecalculation.candidateZones(clock.zone)
+        val result = NightRuleRecalculation.recalculateSessions(
+            sessions = backup.data.sessions,
+            routes   = NightRuleRecalculation.RouteSummary.of(backup.data.routePoints),
+            zones    = zones,
+        )
+        return backup.copy(
+            data               = backup.data.copy(sessions = result.sessions),
+            // The data now follows the current rule.
+            legacyNightRule    = false,
+            // Nothing to report for a backup without drives.
+            nightRecalculation = result.summary.takeIf { backup.data.sessions.isNotEmpty() },
+        )
+    }
 
     private suspend fun currentProfile() = BackupProfile(
         studentName  = onboardingRepository.studentName.first(),

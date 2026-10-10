@@ -116,6 +116,15 @@
     <string name="dialog_backup_import_warning">Importing deletes all drives, routes and supervisors in the app and replaces them with the data in the file.</string>
     <string name="dialog_backup_import_profile_replaced">The student name and permit number are also replaced.</string>
     <string name="dialog_backup_import_profile_kept">The file has no student profile, so the student name and permit number in the app are kept.</string>
+    <string name="dialog_backup_import_night_recalculated">This backup was made before night time was counted from sunset to sunrise.</string>
+    <plurals name="backup_night_recalculated_count">
+        <item quantity="one">Night minutes are recalculated for %d drive.</item>
+        <item quantity="other">Night minutes are recalculated for %d drives.</item>
+    </plurals>
+    <plurals name="backup_night_kept_count">
+        <item quantity="one">%d drive keeps its recorded night minutes, because the app cannot tell how they were calculated. Editing the drive\'s times recalculates them.</item>
+        <item quantity="other">%d drives keep their recorded night minutes, because the app cannot tell how they were calculated. Editing a drive\'s times recalculates them.</item>
+    </plurals>
     <string name="dialog_backup_import_safety">A backup of the current data is saved to Downloads first.</string>
     <string name="dialog_backup_import_no_safety">The app has no data yet, so no backup is made first.</string>
     <string name="button_backup_import_confirm">Replace data</string>

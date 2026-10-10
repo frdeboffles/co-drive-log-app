@@ -9,6 +9,7 @@ import com.codrivelog.app.backup.BackupException
 import com.codrivelog.app.backup.BackupManager
 import com.codrivelog.app.backup.BackupSummary
 import com.codrivelog.app.backup.DatabaseBackup
+import com.codrivelog.app.util.NightRuleRecalculation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,6 +58,7 @@ class BackupViewModel @Inject constructor(
                 incoming = incoming.summary(),
                 incomingCreatedAt  = incoming.createdAt,
                 incomingAppVersion = incoming.appVersion,
+                nightRecalculation = incoming.nightRecalculation,
             )
         }
     }
@@ -108,6 +110,7 @@ sealed interface BackupUiState {
         val incoming: BackupSummary,
         val incomingCreatedAt: LocalDateTime,
         val incomingAppVersion: String,
+        val nightRecalculation: NightRuleRecalculation.Summary? = null,
     ) : BackupUiState
 
     data class ExportDone(val fileName: String) : BackupUiState

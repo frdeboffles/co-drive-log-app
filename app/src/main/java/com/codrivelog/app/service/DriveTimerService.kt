@@ -17,13 +17,16 @@ import androidx.core.content.ContextCompat
 import com.codrivelog.app.R
 import com.codrivelog.app.data.model.DriveRoutePoint
 import com.codrivelog.app.data.model.DriveSession
+import com.codrivelog.app.data.model.NightSource
 import com.codrivelog.app.data.repository.DriveRouteRepository
 import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.location.LatLng
 import com.codrivelog.app.location.LocationProvider
 import com.codrivelog.app.ui.MainActivity
 import com.codrivelog.app.util.ElapsedTimeFormatter
+import com.codrivelog.app.util.DriveMinutes
 import com.codrivelog.app.util.NightMinutesCalculator
+import com.codrivelog.app.util.NightRuleRecalculation
 import com.codrivelog.app.util.SunCalculator
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -34,6 +37,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -74,7 +78,11 @@ class DriveTimerService : Service() {
     private var locationJob: Job? = null
 
     // Mutable session-level accumulators (only written from serviceScope)
-    private var startTime:        LocalDateTime? = null
+    // Instants, not local times: across the daylight-saving fall-back hour
+    // local times repeat, and converting them back to UTC guesses the offset.
+    private var startInstant:     Instant?       = null
+    /** [startInstant] on the local clock, for the UI. */
+    private var startLocal:       LocalDateTime? = null
     private var supervisorName:   String         = ""
     private var supervisorInitials: String       = ""
     private var comments:         String?        = null
@@ -82,6 +90,8 @@ class DriveTimerService : Service() {
     private var lastLocation:     LatLng?        = null
     private var isCurrentlyNight: Boolean        = false
     private var manualNightOverride: Boolean     = false
+    /** `true` once the night switch counted a second, i.e. it was on without a GPS fix. */
+    private var manualSwitchUsed: Boolean        = false
     private var routePointsBuffer: MutableList<DriveRoutePointDraft> = mutableListOf()
 
     // ---- Service lifecycle ----
@@ -121,18 +131,20 @@ class DriveTimerService : Service() {
         supervisorName     = intent.getStringExtra(EXTRA_SUPERVISOR_NAME)     ?: ""
         supervisorInitials = intent.getStringExtra(EXTRA_SUPERVISOR_INITIALS) ?: ""
         comments           = intent.getStringExtra(EXTRA_COMMENTS)
-        startTime          = LocalDateTime.now()
+        startInstant       = Instant.now()
+        startLocal         = LocalDateTime.ofInstant(startInstant, ZoneId.systemDefault())
         nightSeconds       = 0L
         lastLocation       = null
         isCurrentlyNight   = false
         manualNightOverride = false
+        manualSwitchUsed   = false
         routePointsBuffer = mutableListOf()
 
         serviceScope.launch {
             val fix = locationProvider.getLastLocation()
             if (fix != null) {
                 lastLocation = fix
-                maybeRecordRoutePoint(fix, LocalDateTime.now(), force = true)
+                maybeRecordRoutePoint(fix, nowUtc(), force = true)
             }
         }
 
@@ -144,30 +156,23 @@ class DriveTimerService : Service() {
         tickJob?.cancel()
         locationJob?.cancel()
 
-        val start = startTime ?: run { stopSelf(); return }
-        val end   = LocalDateTime.now()
+        val startInstant = startInstant ?: run { stopSelf(); return }
+        val endInstant   = Instant.now()
 
         timerRepository.update(TimerState.Saving)
         updateNotification(getString(R.string.notification_text_saving))
 
         serviceScope.launch {
-            val totalMinutes = Duration.between(start, end).toMinutes().toInt()
-                .coerceAtLeast(0)
-
-            // Re-compute night minutes from the full interval + location history.
-            // If GPS was available, use the precise NOAA calculation.
-            // If GPS was never available, fall back to the manually-accumulated nightSeconds
-            // (which respects any manual night override the user toggled during the drive).
-            val computedNightMinutes = lastLocation?.let { loc ->
-                val startUtc = toUtc(start)
-                val endUtc = toUtc(end)
-                NightMinutesCalculator.computeNightMinutesForSession(
-                    start         = startUtc,
-                    end           = endUtc,
-                    latitudeDeg   = loc.latitude,
-                    longitudeDeg  = loc.longitude,
-                )
-            } ?: (nightSeconds / 60).toInt()
+            val zone = ZoneId.systemDefault()
+            // Local times are stored for display; durations and night minutes
+            // come from the instants, so the fall-back hour cannot skew them.
+            val start = LocalDateTime.ofInstant(startInstant, zone)
+            val end = LocalDateTime.ofInstant(endInstant, zone)
+            val endUtc = LocalDateTime.ofInstant(endInstant, ZoneOffset.UTC)
+            val fixLocation = lastLocation?.let { NightRuleRecalculation.Location(it.latitude, it.longitude) }
+            val nightSource = timedDriveNightSource(hasFix = fixLocation != null, manualSwitchUsed = manualSwitchUsed)
+            val (totalMinutes, computedNightMinutes) =
+                timedDriveMinutes(startInstant, endInstant, fixLocation, nightSeconds)
 
             val session = DriveSession(
                 date               = start.toLocalDate(),
@@ -179,19 +184,23 @@ class DriveTimerService : Service() {
                 supervisorInitials = supervisorInitials,
                 comments           = comments,
                 isManualEntry      = false,
+                nightSource        = nightSource,
+                nightLatitude      = fixLocation?.latitude,
+                nightLongitude     = fixLocation?.longitude,
+                timeZone           = zone.id,
             )
             val sessionId = sessionRepository.insert(session)
 
             val finalFix = locationProvider.getLastLocation()
             if (finalFix != null) {
-                maybeRecordRoutePoint(finalFix, end, force = true)
+                maybeRecordRoutePoint(finalFix, endUtc, force = true)
             }
 
             routePointsBuffer.forEach { draft ->
                 routeRepository.insert(
                     DriveRoutePoint(
                         sessionId = sessionId,
-                        timestamp = toUtc(draft.timestamp),
+                        timestamp = draft.timestamp,
                         latitude = draft.latitude,
                         longitude = draft.longitude,
                         accuracyMeters = draft.accuracyMeters,
@@ -209,8 +218,9 @@ class DriveTimerService : Service() {
     private fun startTickLoop() {
         tickJob = serviceScope.launch {
             while (true) {
-                val start = startTime ?: break
-                val elapsed = Duration.between(start, LocalDateTime.now()).seconds
+                val startInstant = startInstant ?: break
+                val start = startLocal ?: break
+                val elapsed = Duration.between(startInstant, Instant.now()).seconds
                     .coerceAtLeast(0L)
 
                 // Read any manual override the user may have toggled via the UI.
@@ -224,6 +234,7 @@ class DriveTimerService : Service() {
 
                 // Accumulate night seconds each tick (1 s granularity).
                 if (effectivelyNight) nightSeconds += TICK_INTERVAL_MS / 1_000L
+                if (lastLocation == null && manualNightOverride) manualSwitchUsed = true
 
                 timerRepository.update(
                     TimerState.Running(
@@ -253,13 +264,13 @@ class DriveTimerService : Service() {
                 val fix = locationProvider.getLastLocation()
                 if (fix != null) {
                     lastLocation = fix
-                    maybeRecordRoutePoint(fix, LocalDateTime.now(), force = false)
-                    val nowUtc = LocalDateTime.now(ZoneOffset.UTC)
-                    val date = nowUtc.toLocalDate()
+                    val now = nowUtc()
+                    maybeRecordRoutePoint(fix, now, force = false)
+                    val date = now.toLocalDate()
                     val times = SunCalculator.calculate(fix.latitude, fix.longitude, date)
                     val previousDayTimes = SunCalculator.calculate(fix.latitude, fix.longitude, date.minusDays(1))
 
-                    isCurrentlyNight = isNightUtc(nowUtc, times, previousDayTimes)
+                    isCurrentlyNight = NightMinutesCalculator.isNightUtc(now, times, previousDayTimes)
                 }
                 delay(LOCATION_POLL_INTERVAL_MS)
             }
@@ -279,11 +290,9 @@ class DriveTimerService : Service() {
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
 
-    private fun toUtc(localDateTime: LocalDateTime): LocalDateTime =
-        localDateTime
-            .atZone(ZoneId.systemDefault())
-            .withZoneSameInstant(ZoneOffset.UTC)
-            .toLocalDateTime()
+
+    /** Route points are stamped in UTC, like the stored timestamps. */
+    private fun nowUtc(): LocalDateTime = LocalDateTime.now(ZoneOffset.UTC)
 
     private fun maybeRecordRoutePoint(fix: LatLng, now: LocalDateTime, force: Boolean) {
         val recentAccepted = routePointsBuffer.lastOrNull()
@@ -385,7 +394,38 @@ class DriveTimerService : Service() {
     }
 }
 
+/**
+ * Where a timed drive's night minutes come from. [NightSource.MANUAL] only
+ * when the switch counted night: a drive without a fix where nobody used the
+ * switch is [NightSource.UNKNOWN], so editing its times can still give it
+ * night credit.
+ */
+internal fun timedDriveNightSource(hasFix: Boolean, manualSwitchUsed: Boolean): NightSource = when {
+    hasFix           -> NightSource.SUN
+    manualSwitchUsed -> NightSource.MANUAL
+    else             -> NightSource.UNKNOWN
+}
+
+/**
+ * Total and night minutes of a timed drive, from its start and stop instants.
+ *
+ * With a GPS fix, night minutes are the sun calculation at that fix;
+ * without one, the seconds counted with the manual night switch. Night
+ * minutes never exceed the total.
+ */
+internal fun timedDriveMinutes(
+    startInstant: Instant,
+    endInstant: Instant,
+    fixLocation: NightRuleRecalculation.Location?,
+    manualNightSeconds: Long,
+): Pair<Int, Int> {
+    val minutes = DriveMinutes.fromInstants(startInstant, endInstant, fixLocation)
+    val night = minutes.night ?: (manualNightSeconds / 60).toInt().coerceAtMost(minutes.total)
+    return minutes.total to night
+}
+
 internal data class DriveRoutePointDraft(
+    /** UTC, as stored in `drive_route_points.timestamp`. */
     val timestamp: LocalDateTime,
     val latitude: Double,
     val longitude: Double,
@@ -439,34 +479,3 @@ private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Doubl
     return r * c
 }
 
-internal fun isNightUtc(
-    nowUtc: LocalDateTime,
-    sunTimes: SunCalculator.SunTimes,
-    previousDaySunTimes: SunCalculator.SunTimes,
-): Boolean {
-    val date = nowUtc.toLocalDate()
-    val sunrise = sunTimes.sunrise?.let { date.atTime(it).minusHours(1) } ?: return true
-
-    val sunsetLt = sunTimes.sunset ?: return false
-    val sunriseLt = sunTimes.sunrise ?: return true
-    val sunset = if (sunsetLt < sunriseLt) {
-        date.plusDays(1).atTime(sunsetLt)
-    } else {
-        date.atTime(sunsetLt)
-    }.plusHours(1)
-
-    val previousSunset = previousDaySunTimes.sunset?.let { prevSunsetLt ->
-        val previousDate = date.minusDays(1)
-        val previousSunriseLt = previousDaySunTimes.sunrise
-        if (previousSunriseLt != null && prevSunsetLt < previousSunriseLt) {
-            previousDate.plusDays(1).atTime(prevSunsetLt)
-        } else {
-            previousDate.atTime(prevSunsetLt)
-        }
-    }?.plusHours(1)
-
-    val preSunriseStart = previousSunset ?: date.atStartOfDay()
-    val inPreSunriseWindow = !nowUtc.isBefore(preSunriseStart) && nowUtc.isBefore(sunrise)
-    val inPostSunsetWindow = !nowUtc.isBefore(sunset)
-    return inPreSunriseWindow || inPostSunsetWindow
-}

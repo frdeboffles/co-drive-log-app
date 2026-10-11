@@ -37,4 +37,6 @@ abstract class CoDriveLogDatabase : RoomDatabase() {
     abstract fun driveRoutePointDao(): DriveRoutePointDao
 
     abstract fun backupDao(): BackupDao
+
+    abstract fun timedDriveDao(): TimedDriveDao
 }

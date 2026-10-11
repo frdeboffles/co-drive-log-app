@@ -4,26 +4,31 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
-import android.os.CancellationSignal
+import android.location.LocationRequest
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.coroutines.resume
 
 /**
- * Production [LocationProvider] backed by [LocationManager.getLastKnownLocation].
+ * Production [LocationProvider] backed by [LocationManager] location requests.
  *
- * Returns the freshest cached fix from any available provider (GPS → network → passive),
- * or `null` when no fix is available or the permission is missing.
+ * During a drive it keeps a continuous request on both GPS and the network
+ * provider, and passes network fixes on only when GPS has been silent for
+ * [NETWORK_FALLBACK_AFTER_MS]:
+ * - while GPS works, its fixes arrive every interval and network fixes,
+ *   tens to hundreds of metres off, never reach the route;
+ * - in a garage, between tall buildings or with GPS off, the network takes
+ *   over after that delay.
  *
- * Power note: this implementation **never** actively requests location updates.
- * [com.codrivelog.app.service.DriveTimerService] calls this on a periodic timer
- * (every ~60 s) so the device's existing GPS duty-cycle keeps the cache fresh
- * during an active drive.
+ * A provider that is switched off may still be requested: it starts
+ * delivering when the user switches location on.
  *
  * @param context Application context injected by Hilt.
  */
@@ -35,56 +40,55 @@ class FusedLocationProvider @Inject constructor(
     private val locationManager: LocationManager =
         context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
-    override suspend fun getLastLocation(): LatLng? {
-        if (!hasLocationPermission()) return null
-
-        val current = getCurrentLocation()
-        if (current != null) {
-            return LatLng(
-                latitude = current.latitude,
-                longitude = current.longitude,
-                accuracyMeters = current.accuracy,
-            )
+    override fun locationUpdates(intervalMillis: Long): Flow<LatLng> = callbackFlow {
+        if (!hasLocationPermission()) {
+            close()
+            return@callbackFlow
         }
+        // Time since boot, not Location.time: GPS stamps fixes with satellite
+        // time and the network with the phone clock, which can be minutes
+        // apart. Counts as a GPS fix at start, so the network waits for GPS
+        // first. Only read and written on the main executor.
+        var lastGpsFixAtNanos = SystemClock.elapsedRealtimeNanos()
+        val listener = LocationListener { location ->
+            if (location.provider == LocationManager.GPS_PROVIDER) {
+                lastGpsFixAtNanos = location.elapsedRealtimeNanos
+            } else if (location.elapsedRealtimeNanos - lastGpsFixAtNanos < NETWORK_FALLBACK_AFTER_NANOS) {
+                return@LocationListener
+            }
+            trySend(location.toLatLng())
+        }
+        val request = LocationRequest.Builder(intervalMillis)
+            .setQuality(LocationRequest.QUALITY_HIGH_ACCURACY)
+            .build()
+        try {
+            PROVIDERS.filter { locationManager.hasProvider(it) }.forEach { provider ->
+                // Throws SecurityException if permission was revoked meanwhile;
+                // the flow then fails and the collector retries.
+                @Suppress("MissingPermission")
+                locationManager.requestLocationUpdates(provider, request, context.mainExecutor, listener)
+            }
+        } catch (e: Exception) {
+            // A provider registered before the failure must not stay active:
+            // each retry would add another listener and drain the battery.
+            locationManager.removeUpdates(listener)
+            throw e
+        }
+        awaitClose { locationManager.removeUpdates(listener) }
+    }
 
-        val bestCached = PROVIDERS
+    override fun lastKnownLocation(): LatLng? {
+        if (!hasLocationPermission()) return null
+        return PROVIDERS
             .mapNotNull { provider ->
                 @Suppress("MissingPermission")
-                locationManager.getLastKnownLocation(provider)
+                runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull()
             }
-            .maxByOrNull { it.time }   // freshest fix wins
-
-        return bestCached?.let {
-            LatLng(
-                latitude = it.latitude,
-                longitude = it.longitude,
-                accuracyMeters = it.accuracy,
-            )
-        }
+            .maxByOrNull { it.elapsedRealtimeNanos }
+            ?.toLatLng()
     }
 
-    private suspend fun getCurrentLocation(): Location? {
-        for (provider in PROVIDERS) {
-            if (!locationManager.isProviderEnabled(provider)) continue
-            val fix = withTimeoutOrNull(CURRENT_LOCATION_TIMEOUT_MS) {
-                suspendCancellableCoroutine<Location?> { continuation ->
-                    val signal = CancellationSignal()
-                    continuation.invokeOnCancellation { signal.cancel() }
-
-                    @Suppress("MissingPermission")
-                    locationManager.getCurrentLocation(
-                        provider,
-                        signal,
-                        context.mainExecutor,
-                    ) { location ->
-                        if (continuation.isActive) continuation.resume(location)
-                    }
-                }
-            }
-            if (fix != null) return fix
-        }
-        return null
-    }
+    private fun Location.toLatLng() = LatLng(latitude, longitude, accuracy)
 
     private fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(
@@ -95,13 +99,12 @@ class FusedLocationProvider @Inject constructor(
         ) == PackageManager.PERMISSION_GRANTED
 
     companion object {
-        /** Location providers tried in priority order (freshest-first strategy). */
         private val PROVIDERS = listOf(
             LocationManager.GPS_PROVIDER,
             LocationManager.NETWORK_PROVIDER,
-            LocationManager.PASSIVE_PROVIDER,
         )
 
-        private const val CURRENT_LOCATION_TIMEOUT_MS = 8_000L
+        /** GPS silence after which network fixes are used. */
+        internal const val NETWORK_FALLBACK_AFTER_NANOS = 30_000_000_000L
     }
 }

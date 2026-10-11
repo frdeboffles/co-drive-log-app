@@ -152,5 +152,6 @@
     <string name="notification_text_idle">Tap to open CO Drive Log</string>
     <string name="notification_text_running">%s elapsed</string>
     <string name="notification_text_saving">Saving session…</string>
+    <string name="notification_save_failed">The drive could not be saved. Add it with Add Past Drive.</string>
     <string name="notification_action_stop">Stop</string>
 </resources>

@@ -103,7 +103,7 @@ ColoradoTeenDriverLog/
 |---|---|
 | `service/TimerState.kt` | Sealed interface: `Idle` / `Running` / `Saving` |
 | `service/DriveTimerRepository.kt` | Process-scoped `@Singleton`; holds `MutableStateFlow<TimerState>`; bridges service ↔ UI |
-| `service/DriveTimerService.kt` | `@AndroidEntryPoint` foreground service; 1-second tick loop; location poll every 60 s; persists session on stop |
+| `service/DriveTimerService.kt` | `@AndroidEntryPoint` foreground service; 1-second tick loop; continuous location updates (10 s) restarted when they end or fail; all drive state on one thread; persists session on stop |
 
 ### UI
 | File | Role |
@@ -121,8 +121,8 @@ ColoradoTeenDriverLog/
 | `util/ElapsedTimeFormatter.kt` | `formatHms(seconds)` → `"H:MM:SS"`, `formatHm(seconds)` → `"H:MM"` |
 | `util/SunCalculator.kt` | NOAA USNO algorithm; UTC sunrise/sunset from lat/lng/date; handles polar edge cases |
 | `util/NightMinutesCalculator.kt` | Splits `[start, end)` drive interval into night minutes; handles multi-day sessions |
-| `location/LocationProvider.kt` | Interface returning `LatLng?` |
-| `location/FusedLocationProvider.kt` | Uses `LocationManager`; tries GPS → network → passive |
+| `location/LocationProvider.kt` | Interface: `locationUpdates(interval): Flow<LatLng>` for the drive, `lastKnownLocation(): LatLng?` for night minutes only |
+| `location/FusedLocationProvider.kt` | Uses `LocationManager`; continuous request on GPS and network, network fixes used only after 30 s without GPS |
 
 ---
 

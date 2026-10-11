@@ -11,6 +11,7 @@ import com.codrivelog.app.data.db.DatabaseMigrations
 import com.codrivelog.app.data.db.DriveRoutePointDao
 import com.codrivelog.app.data.db.DriveSessionDao
 import com.codrivelog.app.data.db.SupervisorDao
+import com.codrivelog.app.data.db.TimedDriveDao
 import com.codrivelog.app.export.DownloadsWriter
 import dagger.Module
 import dagger.Provides
@@ -86,4 +87,8 @@ object DatabaseModule {
     @Provides
     fun provideBackupDao(db: CoDriveLogDatabase): BackupDao =
         db.backupDao()
+
+    @Provides
+    fun provideTimedDriveDao(db: CoDriveLogDatabase): TimedDriveDao =
+        db.timedDriveDao()
 }

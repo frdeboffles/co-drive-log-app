@@ -41,4 +41,16 @@ class TimedDriveMinutesTest {
         assertEquals(20, total)
         assertEquals(20, night)
     }
+
+    @Test
+    fun `night location falls back to the last known location without a fix`() {
+        // Review finding 3: a short drive with no fresh fix keeps night credit.
+        val cached = com.codrivelog.app.location.LatLng(39.7, -104.9, 500f)
+        val fix = com.codrivelog.app.location.LatLng(39.74, -104.99, 4f)
+
+        assertEquals(fix, timedDriveNightLocation(fix, manualSwitchUsed = true) { cached })
+        assertEquals(cached, timedDriveNightLocation(null, manualSwitchUsed = false) { cached })
+        // The switch the user used decides over a cached location.
+        assertEquals(null, timedDriveNightLocation(null, manualSwitchUsed = true) { cached })
+    }
 }

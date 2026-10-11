@@ -15,11 +15,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.codrivelog.app.R
+import com.codrivelog.app.data.db.TimedDriveDao
 import com.codrivelog.app.data.model.DriveRoutePoint
 import com.codrivelog.app.data.model.DriveSession
 import com.codrivelog.app.data.model.NightSource
-import com.codrivelog.app.data.repository.DriveRouteRepository
-import com.codrivelog.app.data.repository.DriveSessionRepository
 import com.codrivelog.app.location.LatLng
 import com.codrivelog.app.location.LocationProvider
 import com.codrivelog.app.ui.MainActivity
@@ -36,6 +35,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.util.Log
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -59,20 +65,27 @@ import javax.inject.Inject
  * so the UI layer can observe elapsed time and day/night status in real-time
  * without binding to the service.
  *
- * ### GPS polling
- * Every [LOCATION_POLL_INTERVAL_MS] the service calls [LocationProvider.getLastLocation]
- * and uses [SunCalculator] to classify the current moment as day or night.  The
+ * ### Location updates
+ * A continuous location request delivers a fix about every
+ * [LOCATION_UPDATE_INTERVAL_MS]. The service records it as a route point and
+ * uses [SunCalculator] to classify the current moment as day or night; the
  * accumulated [nightSeconds] counter is updated accordingly.
  */
 @AndroidEntryPoint
 class DriveTimerService : Service() {
 
-    @Inject lateinit var sessionRepository: DriveSessionRepository
-    @Inject lateinit var routeRepository:   DriveRouteRepository
+    @Inject lateinit var timedDriveDao:     TimedDriveDao
     @Inject lateinit var timerRepository:   DriveTimerRepository
     @Inject lateinit var locationProvider:  LocationProvider
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    // One thread for all of the drive's state (route buffer, last fix, night
+    // seconds): the location stream, the tick loop and the save never run at
+    // the same time. A failure is logged instead of crashing the service.
+    private val serviceScope = CoroutineScope(
+        SupervisorJob() +
+            Dispatchers.Default.limitedParallelism(1) +
+            CoroutineExceptionHandler { _, e -> Log.e(TAG, "Drive timer coroutine failed", e) },
+    )
 
     private var tickJob:     Job? = null
     private var locationJob: Job? = null
@@ -93,6 +106,14 @@ class DriveTimerService : Service() {
     /** `true` once the night switch counted a second, i.e. it was on without a GPS fix. */
     private var manualSwitchUsed: Boolean        = false
     private var routePointsBuffer: MutableList<DriveRoutePointDraft> = mutableListOf()
+    /** UTC time [lastLocation] arrived, to tell whether it is fresh at stop. */
+    private var lastFixAtUtc:     LocalDateTime? = null
+    /** Guards Start and Stop: a new drive starts only from IDLE, a save only from RUNNING. */
+    private var phase: Phase = Phase.IDLE
+    /** Whether the service runs with the location foreground type. Written on the main thread. */
+    @Volatile private var locationForeground: Boolean = false
+
+    private enum class Phase { IDLE, RUNNING, SAVING }
 
     // ---- Service lifecycle ----
 
@@ -102,7 +123,8 @@ class DriveTimerService : Service() {
         super.onCreate()
         createNotificationChannel()
         val notification = buildNotification(getString(R.string.notification_text_idle))
-        val fgsType = if (hasLocationPermission()) {
+        locationForeground = hasLocationPermission()
+        val fgsType = if (locationForeground) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
         } else {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
@@ -126,90 +148,152 @@ class DriveTimerService : Service() {
     // ---- Command handlers ----
 
     private fun handleStart(intent: Intent) {
-        if (timerRepository.timerState.value is TimerState.Running) return  // already running
-
-        supervisorName     = intent.getStringExtra(EXTRA_SUPERVISOR_NAME)     ?: ""
-        supervisorInitials = intent.getStringExtra(EXTRA_SUPERVISOR_INITIALS) ?: ""
-        comments           = intent.getStringExtra(EXTRA_COMMENTS)
-        startInstant       = Instant.now()
-        startLocal         = LocalDateTime.ofInstant(startInstant, ZoneId.systemDefault())
-        nightSeconds       = 0L
-        lastLocation       = null
-        isCurrentlyNight   = false
-        manualNightOverride = false
-        manualSwitchUsed   = false
-        routePointsBuffer = mutableListOf()
-
+        val name     = intent.getStringExtra(EXTRA_SUPERVISOR_NAME)     ?: ""
+        val initials = intent.getStringExtra(EXTRA_SUPERVISOR_INITIALS) ?: ""
+        val note     = intent.getStringExtra(EXTRA_COMMENTS)
+        // On the service's single thread, like everything that touches the
+        // drive. Only from IDLE: not while a drive runs, nor while the
+        // previous one is still saving (its save would clear this drive).
         serviceScope.launch {
-            val fix = locationProvider.getLastLocation()
-            if (fix != null) {
-                lastLocation = fix
-                maybeRecordRoutePoint(fix, nowUtc(), force = true)
-            }
-        }
+            if (phase != Phase.IDLE) return@launch
+            phase = Phase.RUNNING
+            supervisorName     = name
+            supervisorInitials = initials
+            comments           = note
+            startInstant       = Instant.now()
+            startLocal         = LocalDateTime.ofInstant(startInstant, ZoneId.systemDefault())
+            nightSeconds       = 0L
+            lastLocation       = null
+            lastFixAtUtc       = null
+            isCurrentlyNight   = false
+            manualNightOverride = false
+            manualSwitchUsed   = false
+            routePointsBuffer = mutableListOf()
 
-        startTickLoop()
-        startLocationLoop()
+            startTickLoop()
+            startLocationLoop()
+        }
     }
 
     private fun handleStop() {
-        tickJob?.cancel()
-        locationJob?.cancel()
-
-        val startInstant = startInstant ?: run { stopSelf(); return }
-        val endInstant   = Instant.now()
-
-        timerRepository.update(TimerState.Saving)
-        updateNotification(getString(R.string.notification_text_saving))
-
+        val endInstant = Instant.now()
         serviceScope.launch {
-            val zone = ZoneId.systemDefault()
-            // Local times are stored for display; durations and night minutes
-            // come from the instants, so the fall-back hour cannot skew them.
-            val start = LocalDateTime.ofInstant(startInstant, zone)
-            val end = LocalDateTime.ofInstant(endInstant, zone)
-            val endUtc = LocalDateTime.ofInstant(endInstant, ZoneOffset.UTC)
-            val fixLocation = lastLocation?.let { NightRuleRecalculation.Location(it.latitude, it.longitude) }
-            val nightSource = timedDriveNightSource(hasFix = fixLocation != null, manualSwitchUsed = manualSwitchUsed)
-            val (totalMinutes, computedNightMinutes) =
-                timedDriveMinutes(startInstant, endInstant, fixLocation, nightSeconds)
-
-            val session = DriveSession(
-                date               = start.toLocalDate(),
-                startTime          = start,
-                endTime            = end,
-                totalMinutes       = totalMinutes,
-                nightMinutes       = computedNightMinutes,
-                supervisorName     = supervisorName,
-                supervisorInitials = supervisorInitials,
-                comments           = comments,
-                isManualEntry      = false,
-                nightSource        = nightSource,
-                nightLatitude      = fixLocation?.latitude,
-                nightLongitude     = fixLocation?.longitude,
-                timeZone           = zone.id,
-            )
-            val sessionId = sessionRepository.insert(session)
-
-            val finalFix = locationProvider.getLastLocation()
-            if (finalFix != null) {
-                maybeRecordRoutePoint(finalFix, endUtc, force = true)
+            // Only a running drive is saved: a second Stop while saving must
+            // not insert the drive again.
+            if (phase != Phase.RUNNING) {
+                if (phase == Phase.IDLE) stopSelf()
+                return@launch
             }
+            phase = Phase.SAVING
+            tickJob?.cancel()
+            locationJob?.cancel()
+            timerRepository.update(TimerState.Saving)
+            updateNotification(getString(R.string.notification_text_saving))
+            try {
+                saveDrive(startInstant ?: endInstant, endInstant)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Drive could not be saved", e)
+                notifySaveFailed()
+            } finally {
+                // Never left in Saving: the timer, the import and the next
+                // drive would all stay blocked.
+                routePointsBuffer.clear()
+                phase = Phase.IDLE
+                timerRepository.update(TimerState.Idle)
+                stopSelf()
+            }
+        }
+    }
 
-            routePointsBuffer.forEach { draft ->
-                routeRepository.insert(
-                    DriveRoutePoint(
-                        sessionId = sessionId,
-                        timestamp = draft.timestamp,
-                        latitude = draft.latitude,
-                        longitude = draft.longitude,
-                        accuracyMeters = draft.accuracyMeters,
-                    )
+    private suspend fun saveDrive(startInstant: Instant, endInstant: Instant) {
+        val zone = ZoneId.systemDefault()
+        // Local times are stored for display; durations and night minutes
+        // come from the instants, so the fall-back hour cannot skew them.
+        val start = LocalDateTime.ofInstant(startInstant, zone)
+        val end = LocalDateTime.ofInstant(endInstant, zone)
+        val endUtc = LocalDateTime.ofInstant(endInstant, ZoneOffset.UTC)
+        val sunLocation = timedDriveNightLocation(lastLocation, manualSwitchUsed) { locationProvider.lastKnownLocation() }
+            ?.let { NightRuleRecalculation.Location(it.latitude, it.longitude) }
+        val nightSource = timedDriveNightSource(hasFix = sunLocation != null, manualSwitchUsed = manualSwitchUsed)
+        val (totalMinutes, computedNightMinutes) =
+            timedDriveMinutes(startInstant, endInstant, sunLocation, nightSeconds)
+
+        val session = DriveSession(
+            date               = start.toLocalDate(),
+            startTime          = start,
+            endTime            = end,
+            totalMinutes       = totalMinutes,
+            nightMinutes       = computedNightMinutes,
+            supervisorName     = supervisorName,
+            supervisorInitials = supervisorInitials,
+            comments           = comments,
+            isManualEntry      = false,
+            nightSource        = nightSource,
+            nightLatitude      = sunLocation?.latitude,
+            nightLongitude     = sunLocation?.longitude,
+            timeZone           = zone.id,
+        )
+
+        // The stream's last fix ends the route, only if it is fresh; the
+        // movement rule keeps it out when it is already the last point.
+        val lastFix = lastLocation
+        val lastFixAt = lastFixAtUtc
+        if (lastFix != null && lastFixAt != null &&
+            Duration.between(lastFixAt, endUtc).seconds <= FINAL_POINT_MAX_AGE_SECONDS
+        ) {
+            maybeRecordRoutePoint(lastFix, endUtc, force = false)
+        }
+
+        // One transaction: a failed save leaves nothing behind, so adding the
+        // drive by hand afterwards cannot duplicate it.
+        timedDriveDao.insertDriveWithRoute(
+            session = session,
+            routePoints = routePointsBuffer.map { draft ->
+                DriveRoutePoint(
+                    sessionId = 0,
+                    timestamp = draft.timestamp,
+                    latitude = draft.latitude,
+                    longitude = draft.longitude,
+                    accuracyMeters = draft.accuracyMeters,
                 )
+            },
+        )
+    }
+
+    private fun notifySaveFailed() {
+        notificationManager().notify(
+            SAVE_FAILED_NOTIFICATION_ID,
+            NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(getString(R.string.notification_title))
+                .setContentText(getString(R.string.notification_save_failed))
+                .setStyle(NotificationCompat.BigTextStyle().bigText(getString(R.string.notification_save_failed)))
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setAutoCancel(true)
+                .build(),
+        )
+    }
+
+    /**
+     * Promotes the service to the location foreground type once location
+     * permission exists, so a request restarted after the user granted it
+     * also works with the screen locked. Runs before each restart.
+     */
+    private suspend fun ensureLocationForeground() {
+        if (locationForeground || !hasLocationPermission()) return
+        withContext(Dispatchers.Main) {
+            try {
+                ServiceCompat.startForeground(
+                    this@DriveTimerService,
+                    NOTIFICATION_ID,
+                    buildNotification(getString(R.string.notification_text_idle)),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+                )
+                locationForeground = true
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not switch to the location foreground type", e)
             }
-            routePointsBuffer.clear()
-            timerRepository.update(TimerState.Idle)
-            stopSelf()
         }
     }
 
@@ -258,21 +342,31 @@ class DriveTimerService : Service() {
         }
     }
 
+    /**
+     * Collects a continuous location request for the whole drive, restarted
+     * whenever it ends or fails. One-shot requests every 10 s, as before,
+     * kept the GPS idle in between, and with the screen off the phone
+     * deferred them: routes got about one point a minute.
+     */
     private fun startLocationLoop() {
         locationJob = serviceScope.launch {
-            while (true) {
-                val fix = locationProvider.getLastLocation()
-                if (fix != null) {
-                    lastLocation = fix
-                    val now = nowUtc()
-                    maybeRecordRoutePoint(fix, now, force = false)
-                    val date = now.toLocalDate()
-                    val times = SunCalculator.calculate(fix.latitude, fix.longitude, date)
-                    val previousDayTimes = SunCalculator.calculate(fix.latitude, fix.longitude, date.minusDays(1))
+            collectLocationWithRestart(
+                updates        = { locationProvider.locationUpdates(LOCATION_UPDATE_INTERVAL_MS) },
+                restartDelayMs = LOCATION_RESTART_DELAY_MS,
+                beforeAttempt  = { ensureLocationForeground() },
+                onError        = { e -> Log.w(TAG, "Location updates stopped; retrying", e) },
+            ) { fix ->
+                lastLocation = fix
+                val now = nowUtc()
+                lastFixAtUtc = now
+                // Not forced: the first point must pass the accuracy filter
+                // too, or a coarse network fix would start the route.
+                maybeRecordRoutePoint(fix, now, force = false)
+                val date = now.toLocalDate()
+                val times = SunCalculator.calculate(fix.latitude, fix.longitude, date)
+                val previousDayTimes = SunCalculator.calculate(fix.latitude, fix.longitude, date.minusDays(1))
 
-                    isCurrentlyNight = NightMinutesCalculator.isNightUtc(now, times, previousDayTimes)
-                }
-                delay(LOCATION_POLL_INTERVAL_MS)
+                isCurrentlyNight = NightMinutesCalculator.isNightUtc(now, times, previousDayTimes)
             }
         }
     }
@@ -304,7 +398,8 @@ class DriveTimerService : Service() {
             strictAccuracyMeters = ROUTE_MAX_ACCURACY_METERS,
             fallbackAccuracyMeters = ROUTE_FALLBACK_MAX_ACCURACY_METERS,
             fallbackStaleMinutes = ROUTE_FALLBACK_STALE_MINUTES,
-            dedupeDistanceMeters = ROUTE_DEDUPE_DISTANCE_METERS,
+            dedupeMinDistanceMeters = ROUTE_DEDUPE_MIN_DISTANCE_METERS,
+            dedupeAccuracyFactor = ROUTE_DEDUPE_ACCURACY_FACTOR,
             dedupeMinIntervalMinutes = ROUTE_DEDUPE_MIN_INTERVAL_MINUTES,
         )
         if (!shouldRecord) return
@@ -377,19 +472,33 @@ class DriveTimerService : Service() {
         /** Extra: optional comments for the session (String?). */
         const val EXTRA_COMMENTS            = "comments"
 
+        private const val TAG             = "DriveTimerService"
         private const val CHANNEL_ID      = "drive_timer_channel"
         private const val NOTIFICATION_ID = 1
+        private const val SAVE_FAILED_NOTIFICATION_ID = 2
+
+        /** The last fix ends the route only if it is at most this old at stop. */
+        private const val FINAL_POINT_MAX_AGE_SECONDS = 30L
 
         /** How often the notification + StateFlow are refreshed. */
         internal const val TICK_INTERVAL_MS     = 1_000L
 
-        /** How often the GPS cache is polled to update day/night status. */
-        internal const val LOCATION_POLL_INTERVAL_MS = 10_000L
+        /** Interval of the continuous location request during a drive. */
+        internal const val LOCATION_UPDATE_INTERVAL_MS = 10_000L
+
+        /** Wait before the location request is retried after it ended or failed. */
+        internal const val LOCATION_RESTART_DELAY_MS = 10_000L
 
         internal const val ROUTE_MAX_ACCURACY_METERS = 80f
         internal const val ROUTE_FALLBACK_MAX_ACCURACY_METERS = 120f
         internal const val ROUTE_FALLBACK_STALE_MINUTES = 3L
-        internal const val ROUTE_DEDUPE_DISTANCE_METERS = 25.0
+        /**
+         * A fix closer to the last point than the larger of these is GPS
+         * jitter, not movement: 10 m, or twice the combined accuracy of the
+         * fix and the last point.
+         */
+        internal const val ROUTE_DEDUPE_MIN_DISTANCE_METERS = 10.0
+        internal const val ROUTE_DEDUPE_ACCURACY_FACTOR = 2.0
         internal const val ROUTE_DEDUPE_MIN_INTERVAL_MINUTES = 2L
     }
 }
@@ -424,6 +533,45 @@ internal fun timedDriveMinutes(
     return minutes.total to night
 }
 
+/**
+ * Collects [updates] into [onFix] until cancelled. When the flow ends (no
+ * permission, location off) or fails (permission revoked), it is started
+ * again after [restartDelayMs], so a drive recovers once location works.
+ */
+internal suspend fun collectLocationWithRestart(
+    updates: () -> Flow<LatLng>,
+    restartDelayMs: Long,
+    onError: (Exception) -> Unit,
+    beforeAttempt: suspend () -> Unit = {},
+    onFix: suspend (LatLng) -> Unit,
+) {
+    while (currentCoroutineContext().isActive) {
+        try {
+            beforeAttempt()
+            updates().collect { onFix(it) }
+        } catch (e: CancellationException) {
+            // Only the drive ending stops the loop; a cancellation from
+            // inside the flow is retried like any other failure.
+            if (!currentCoroutineContext().isActive) throw e
+            onError(e)
+        } catch (e: Exception) {
+            onError(e)
+        }
+        delay(restartDelayMs)
+    }
+}
+
+/**
+ * Location for the night calculation of a timed drive: the stream's last
+ * fix; without one, the phone's last known location, unless the night switch
+ * was used, which then decides. Never used for the route.
+ */
+internal fun timedDriveNightLocation(
+    streamFix: LatLng?,
+    manualSwitchUsed: Boolean,
+    lastKnown: () -> LatLng?,
+): LatLng? = streamFix ?: if (manualSwitchUsed) null else lastKnown()
+
 internal data class DriveRoutePointDraft(
     /** UTC, as stored in `drive_route_points.timestamp`. */
     val timestamp: LocalDateTime,
@@ -440,7 +588,8 @@ internal fun shouldRecordRoutePoint(
     strictAccuracyMeters: Float,
     fallbackAccuracyMeters: Float,
     fallbackStaleMinutes: Long,
-    dedupeDistanceMeters: Double,
+    dedupeMinDistanceMeters: Double,
+    dedupeAccuracyFactor: Double,
     dedupeMinIntervalMinutes: Long,
 ): Boolean {
     if (force) return true
@@ -460,7 +609,12 @@ internal fun shouldRecordRoutePoint(
             fix.latitude,
             fix.longitude,
         )
-        if (distanceMeters < dedupeDistanceMeters && minutesSinceLast < dedupeMinIntervalMinutes) {
+        // Jitter scales with the accuracy of both points: precise points
+        // count as movement sooner; after or before a coarse one, the
+        // distance must be larger.
+        val combinedAccuracy = kotlin.math.hypot(fix.accuracyMeters.toDouble(), recentAccepted.accuracyMeters.toDouble())
+        val jitterMeters = maxOf(dedupeMinDistanceMeters, dedupeAccuracyFactor * combinedAccuracy)
+        if (distanceMeters < jitterMeters && minutesSinceLast < dedupeMinIntervalMinutes) {
             return false
         }
     }

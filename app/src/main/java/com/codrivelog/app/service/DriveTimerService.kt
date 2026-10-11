@@ -59,9 +59,10 @@ import javax.inject.Inject
  * so the UI layer can observe elapsed time and day/night status in real-time
  * without binding to the service.
  *
- * ### GPS polling
- * Every [LOCATION_POLL_INTERVAL_MS] the service calls [LocationProvider.getLastLocation]
- * and uses [SunCalculator] to classify the current moment as day or night.  The
+ * ### Location updates
+ * A continuous location request delivers a fix about every
+ * [LOCATION_UPDATE_INTERVAL_MS]. The service records it as a route point and
+ * uses [SunCalculator] to classify the current moment as day or night; the
  * accumulated [nightSeconds] counter is updated accordingly.
  */
 @AndroidEntryPoint
@@ -258,21 +259,23 @@ class DriveTimerService : Service() {
         }
     }
 
+    /**
+     * Collects a continuous location request for the whole drive. One-shot
+     * requests every 10 s, as before, kept the GPS idle in between, and with
+     * the screen off the phone deferred them: routes got about one point a
+     * minute.
+     */
     private fun startLocationLoop() {
         locationJob = serviceScope.launch {
-            while (true) {
-                val fix = locationProvider.getLastLocation()
-                if (fix != null) {
-                    lastLocation = fix
-                    val now = nowUtc()
-                    maybeRecordRoutePoint(fix, now, force = false)
-                    val date = now.toLocalDate()
-                    val times = SunCalculator.calculate(fix.latitude, fix.longitude, date)
-                    val previousDayTimes = SunCalculator.calculate(fix.latitude, fix.longitude, date.minusDays(1))
+            locationProvider.locationUpdates(LOCATION_UPDATE_INTERVAL_MS).collect { fix ->
+                lastLocation = fix
+                val now = nowUtc()
+                maybeRecordRoutePoint(fix, now, force = false)
+                val date = now.toLocalDate()
+                val times = SunCalculator.calculate(fix.latitude, fix.longitude, date)
+                val previousDayTimes = SunCalculator.calculate(fix.latitude, fix.longitude, date.minusDays(1))
 
-                    isCurrentlyNight = NightMinutesCalculator.isNightUtc(now, times, previousDayTimes)
-                }
-                delay(LOCATION_POLL_INTERVAL_MS)
+                isCurrentlyNight = NightMinutesCalculator.isNightUtc(now, times, previousDayTimes)
             }
         }
     }
@@ -304,7 +307,8 @@ class DriveTimerService : Service() {
             strictAccuracyMeters = ROUTE_MAX_ACCURACY_METERS,
             fallbackAccuracyMeters = ROUTE_FALLBACK_MAX_ACCURACY_METERS,
             fallbackStaleMinutes = ROUTE_FALLBACK_STALE_MINUTES,
-            dedupeDistanceMeters = ROUTE_DEDUPE_DISTANCE_METERS,
+            dedupeMinDistanceMeters = ROUTE_DEDUPE_MIN_DISTANCE_METERS,
+            dedupeAccuracyFactor = ROUTE_DEDUPE_ACCURACY_FACTOR,
             dedupeMinIntervalMinutes = ROUTE_DEDUPE_MIN_INTERVAL_MINUTES,
         )
         if (!shouldRecord) return
@@ -384,12 +388,17 @@ class DriveTimerService : Service() {
         internal const val TICK_INTERVAL_MS     = 1_000L
 
         /** How often the GPS cache is polled to update day/night status. */
-        internal const val LOCATION_POLL_INTERVAL_MS = 10_000L
+        internal const val LOCATION_UPDATE_INTERVAL_MS = 10_000L
 
         internal const val ROUTE_MAX_ACCURACY_METERS = 80f
         internal const val ROUTE_FALLBACK_MAX_ACCURACY_METERS = 120f
         internal const val ROUTE_FALLBACK_STALE_MINUTES = 3L
-        internal const val ROUTE_DEDUPE_DISTANCE_METERS = 25.0
+        /**
+         * A fix closer to the last point than the larger of these is GPS
+         * jitter, not movement: 10 m, or twice the fix's accuracy.
+         */
+        internal const val ROUTE_DEDUPE_MIN_DISTANCE_METERS = 10.0
+        internal const val ROUTE_DEDUPE_ACCURACY_FACTOR = 2.0
         internal const val ROUTE_DEDUPE_MIN_INTERVAL_MINUTES = 2L
     }
 }
@@ -440,7 +449,8 @@ internal fun shouldRecordRoutePoint(
     strictAccuracyMeters: Float,
     fallbackAccuracyMeters: Float,
     fallbackStaleMinutes: Long,
-    dedupeDistanceMeters: Double,
+    dedupeMinDistanceMeters: Double,
+    dedupeAccuracyFactor: Double,
     dedupeMinIntervalMinutes: Long,
 ): Boolean {
     if (force) return true
@@ -460,7 +470,10 @@ internal fun shouldRecordRoutePoint(
             fix.latitude,
             fix.longitude,
         )
-        if (distanceMeters < dedupeDistanceMeters && minutesSinceLast < dedupeMinIntervalMinutes) {
+        // Jitter scales with the fix's accuracy: a precise fix counts as
+        // movement sooner, a coarse one needs to move further.
+        val jitterMeters = maxOf(dedupeMinDistanceMeters, dedupeAccuracyFactor * fix.accuracyMeters)
+        if (distanceMeters < jitterMeters && minutesSinceLast < dedupeMinIntervalMinutes) {
             return false
         }
     }

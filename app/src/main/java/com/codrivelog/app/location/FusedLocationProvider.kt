@@ -4,10 +4,15 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationListener
+import android.location.LocationRequest
 import android.location.LocationManager
 import android.os.CancellationSignal
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
@@ -61,6 +66,30 @@ class FusedLocationProvider @Inject constructor(
                 accuracyMeters = it.accuracy,
             )
         }
+    }
+
+    override fun locationUpdates(intervalMillis: Long): Flow<LatLng> = callbackFlow {
+        if (!hasLocationPermission()) {
+            close()
+            return@callbackFlow
+        }
+        val listener = LocationListener { location ->
+            trySend(LatLng(location.latitude, location.longitude, location.accuracy))
+        }
+        val request = LocationRequest.Builder(intervalMillis)
+            .setQuality(LocationRequest.QUALITY_HIGH_ACCURACY)
+            .build()
+        // GPS only while it is on. Network fixes (Wi-Fi, cell towers) are
+        // tens to hundreds of metres off; mixed in with GPS fixes they made
+        // the route zig-zag. The network is used only when GPS is off.
+        val provider = PROVIDERS.firstOrNull { locationManager.isProviderEnabled(it) }
+        if (provider == null) {
+            close()
+            return@callbackFlow
+        }
+        @Suppress("MissingPermission")
+        locationManager.requestLocationUpdates(provider, request, context.mainExecutor, listener)
+        awaitClose { locationManager.removeUpdates(listener) }
     }
 
     private suspend fun getCurrentLocation(): Location? {
